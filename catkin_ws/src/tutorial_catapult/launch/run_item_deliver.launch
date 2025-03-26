@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="deliver_x" default="1"/>
+    <arg name="deliver_y" default="0"/>
+    <arg name="deliver_z" default="1"/>
+    
+    <arg name="run_mavros" default="true"/>
+    <arg name="run_driver" default="true"/>
+    <arg name="run_fast_lio" default="true"/>
+
+    <node pkg="tutorial_catapult" type="item_deliver_node" name="item_deliver" output="screen">
+        <param name="deliver_x" value="$(arg deliver_x)"/>
+        <param name="deliver_y" value="$(arg deliver_y)"/>
+        <param name="deliver_z" value="$(arg deliver_z)"/>
+    </node>
+    <include file="$(find tutorial_basic)/launch/mavros.launch" if="$(arg run_mavros)"/>
+    <include file="$(find tutorial_catapult)/launch/catapult_driver.launch" if="$(arg run_driver)"/>
+    <include file="$(find tutorial_navigation)/launch/mid360.launch" if="$(arg run_fast_lio)"/>
+</launch>

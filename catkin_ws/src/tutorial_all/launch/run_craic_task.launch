@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="working_altitude" default="1.0"/>
+    <arg name="yolo_weights_path" default="$(find tutorial_vision)/model/example.pt"/>
+    <arg name="pubImg" default="false"/>
+    
+    <arg name="run_all_dependence" default="true"/>
+    <arg name="run_mavros" default="$(arg run_all_dependence)"/>
+    <arg name="run_move_base" default="$(arg run_all_dependence)"/>
+    <arg name="run_fast_lio" default="$(arg run_all_dependence)"/>
+    <arg name="run_catapult_driver" default="$(arg run_all_dependence)"/>
+    <arg name="run_camera_driver" default="$(arg run_all_dependence)"/>
+    <arg name="run_deliver_detector" default="$(arg run_all_dependence)"/>
+    <arg name="run_parking_detector" default="$(arg run_all_dependence)"/>
+    <arg name="run_qr_detector" default="$(arg run_all_dependence)"/>
+    <arg name="run_yolo_detector" default="$(arg run_all_dependence)"/>
+    
+    <node pkg="tutorial_all" type="run_craic_task_node" name="task_node" output="screen">
+        <param name="working_altitude" value="$(arg working_altitude)"/>
+    </node>
+    
+    <include file="$(find tutorial_basic)/launch/mavros.launch" if="$(arg run_mavros)"/>
+    <include file="$(find tutorial_navigation)/launch/move_base.launch" if="$(arg run_move_base)"/>
+    <include file="$(find tutorial_navigation)/launch/mid360.launch" if="$(arg run_fast_lio)"/>
+    <include file="$(find tutorial_catapult)/launch/catapult_driver.launch" if="$(arg run_catapult_driver)"/>
+    <include file="$(find tutorial_vision)/launch/simple_camera_driver.launch" if="$(arg run_camera_driver)"/>
+    <node pkg="tutorial_vision" type="hough_circle_detector.py" name="deliver_detector" if="$(arg run_deliver_detector)">
+        <rosparam file="$(find tutorial_all)/param/deliver_detect_params.yaml" command="load"/>
+        <param name="pubImg" value="$(arg pubImg)"/>
+        <remap from="circle_detect_result" to="deliver_detect_result"/>
+        <remap from="circle_detect_result_img" to="deliver_detect_result_img"/>
+    </node>
+    <node pkg="tutorial_vision" type="hough_circle_detector.py" name="parking_detector" if="$(arg run_parking_detector)">
+        <rosparam file="$(find tutorial_all)/param/parking_detect_params.yaml" command="load"/>
+        <param name="pubImg" value="$(arg pubImg)"/>
+        <remap from="circle_detect_result" to="parking_detect_result"/>
+        <remap from="circle_detect_result_img" to="parking_detect_result_img"/>
+    </node>
+    <include file="$(find tutorial_vision)/launch/qr_detector.launch" if="$(arg run_qr_detector)"/>
+    <include file="$(find tutorial_vision)/launch/yolov5.launch" if="$(arg run_yolo_detector)">
+        <arg name="weights_path" value="$(arg yolo_weights_path)"/>
+    </include>
+</launch>

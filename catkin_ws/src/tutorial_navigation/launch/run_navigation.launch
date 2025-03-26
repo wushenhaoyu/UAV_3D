@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="target_x" default="3"/>
+    <arg name="target_y" default="0"/>
+    <arg name="target_z" default="1"/>
+    
+    <arg name="run_mavros" default="true"/>
+    <arg name="run_move_base" default="true"/>
+    <arg name="run_fast_lio" default="true"/>
+    
+    <include file="$(find tutorial_basic)/launch/mavros.launch" if="$(arg run_mavros)"/>
+    <include file="$(find tutorial_navigation)/launch/mid360.launch" if="$(arg run_fast_lio)"/>
+    <include file="$(find tutorial_navigation)/launch/move_base.launch" if="$(arg run_move_base)"/>
+    <node pkg="tutorial_navigation" type="navigation_node" name="navigation_node" output="screen">
+        <param name="target_x" value="$(arg target_x)"/>
+        <param name="target_y" value="$(arg target_y)"/>
+        <param name="target_z" value="$(arg target_z)"/>
+    </node>
+</launch>

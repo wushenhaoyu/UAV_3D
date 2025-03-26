@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="parking_x" default="1"/>
+    <arg name="parking_y" default="0"/>
+    <arg name="parking_z" default="1"/>
+    
+    <arg name="run_mavros" default="true"/>
+    <arg name="run_driver" default="true"/>
+    <arg name="run_detector" default="true"/>
+    <arg name="run_fast_lio" default="true"/>
+    
+    <arg name="dp" default="1"/>
+    <arg name="minDist" default="20"/>
+    <arg name="param1" default="50"/>
+    <arg name="param2" default="100"/>
+    <arg name="minRadius" default="70"/>
+    <arg name="maxRadius" default="500"/>
+
+    <node pkg="tutorial_vision" type="accurately_land_node" name="accurately_land" output="screen">
+        <param name="parking_x" value="$(arg parking_x)"/>
+        <param name="parking_y" value="$(arg parking_y)"/>
+        <param name="parking_z" value="$(arg parking_z)"/>
+    </node>
+    <include file="$(find tutorial_basic)/launch/mavros.launch" if="$(arg run_mavros)"/>
+    <include file="$(find tutorial_vision)/launch/simple_camera_driver.launch" if="$(arg run_driver)"/>
+    <include file="$(find tutorial_vision)/launch/circle_detector.launch" if="$(arg run_detector)">
+        <arg name="dp" value="$(arg dp)"/>
+        <arg name="minDist" value="$(arg minDist)"/>
+        <arg name="param1" value="$(arg param1)"/>
+        <arg name="param2" value="$(arg param2)"/>
+        <arg name="minRadius" value="$(arg minRadius)"/>
+        <arg name="maxRadius" value="$(arg maxRadius)"/>
+    </include>
+    <include file="$(find tutorial_navigation)/launch/mid360.launch" if="$(arg run_fast_lio)"/>
+</launch>

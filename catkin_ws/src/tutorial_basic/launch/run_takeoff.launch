@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="run_mavros" default="true"/>
+    <arg name="run_fast_lio" default="true"/>
+
+    <node pkg="tutorial_basic" type="takeoff_node" name="takeoff_node" output="screen"/>
+    <include file="$(find tutorial_basic)/launch/mavros.launch" if="$(arg run_mavros)"/>
+    <include file="$(find tutorial_navigation)/launch/mid360.launch" if="$(arg run_fast_lio)"/>
+</launch>

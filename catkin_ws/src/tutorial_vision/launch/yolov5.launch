@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="run_driver" default="false"/>
+    <arg name="yolov5_root" default="$(env HOME)/Libraries/yolov5"/>
+    <arg name="weights_path" default="$(find tutorial_vision)/model/example.pt"/>
+    <arg name="device" default="cuda:0"/>
+    <arg name="confidence" default="0.85"/>
+    
+    <node pkg="tutorial_vision" type="yolov5_predict.py" name="yolov5_predict">
+        <param name="yolov5_root" value="$(arg yolov5_root)"/>
+        <param name="weights_path" value="$(arg weights_path)"/>
+        <param name="device" value="$(arg device)"/>
+        <param name="confidence" value="$(arg confidence)"/>
+    </node>
+    <include file="$(find tutorial_vision)/launch/simple_camera_driver.launch" if="$(arg run_driver)"/>
+</launch>

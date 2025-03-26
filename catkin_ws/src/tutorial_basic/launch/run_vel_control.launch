@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="hover_x" default="1"/>
+    <arg name="hover_y" default="0"/>
+    <arg name="hover_z" default="1"/>
+    <arg name="run_mavros" default="true"/>
+    <arg name="run_fast_lio" default="true"/>
+
+    <node pkg="tutorial_basic" type="vel_control_node" name="takeoff_node" output="screen">
+        <param name="hover_x" value="$(arg hover_x)"/>
+        <param name="hover_y" value="$(arg hover_y)"/>
+        <param name="hover_z" value="$(arg hover_z)"/>
+    </node>
+    <include file="$(find tutorial_basic)/launch/mavros.launch" if="$(arg run_mavros)"/>
+    <include file="$(find tutorial_navigation)/launch/mid360.launch" if="$(arg run_fast_lio)"/>
+</launch>

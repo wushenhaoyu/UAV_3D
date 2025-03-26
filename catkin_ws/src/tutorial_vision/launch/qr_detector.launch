@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="run_driver" default="false"/>
+    
+    <node pkg="tutorial_vision" type="qr_detector.py" name="qr_detector"/>
+    <include file="$(find tutorial_vision)/launch/simple_camera_driver.launch" if="$(arg run_driver)"/>
+</launch>

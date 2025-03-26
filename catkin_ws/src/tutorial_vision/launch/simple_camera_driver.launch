@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="camera_id" default="0"/>
+    <arg name="frame_id" default="mono_camera"/>
+    <arg name="rate" default="10"/>
+    
+    <node pkg="tutorial_vision" type="simple_camera_driver.py" name="camera_driver">
+        <param name="camera_id" value="$(arg camera_id)"/>
+        <param name="frame_id" value="$(arg frame_id)"/>
+        <param name="rate" value="$(arg rate)"/>
+    </node>
+</launch>
