@@ -290,53 +290,27 @@ int main(int argc, char **argv) {
                 break;
             case 2:  // Takeoff state
                 if (current_pose.pose.position.z > working_altitude) {
-                    fsm_state = 3;  // goto scan qr state
+                    fsm_state = 4;  // goto scan qr state
                     std::cout << "\033[32mReached Scan QR State.\033[0m" << std::endl;
                     last_srv_request = ros::Time::now();
                 } else {
                     twist.twist.linear.z = 0.4;
                 }
                 break;
-            case 3:  // Scan QR state
-                 if (ros::Time::now() - last_srv_request > ros::Duration(1.0) &&
-                        qr_result.header.stamp > last_srv_request &&
-                        qr_result.data.size() > 0) {
-                    std::cout << "\033[34mQR Detect: " << qr_result.data[0] << "\033[0m" << std::endl;
-                    analyseQrMessage(qr_result.data[0], post_target, land_target);
-                    fsm_state = 4;  // goto check deliver point state
-                    std::cout << "\033[32mReached Check Deliver Point State.\033[0m" << std::endl;
-                    last_srv_request = ros::Time::now();
-                } else if (ros::Time::now() - last_srv_request > ros::Duration(5000.0)) {  // Timeout, detect failed
-                    land_target = "left";
-                    fsm_state = 7;  // goto navigate to special sign state
-                    std::cout << "\033[32mReached Navigate to Special Sign State.\033[0m" << std::endl;
-                } else {
-                    if (getLengthBetweenPoints(current_pose.pose.position, qr_position) > 0.3) {
-                        last_srv_request = ros::Time::now();
-                    }
-                    twist.twist = get_pid_vel(qr_position);
-                }
-                break;
             case 4:  // Check deliver point state
                  if (ros::Time::now() - last_srv_request > ros::Duration(1.0) &&
                         sign_result.header.stamp > last_srv_request &&
-                        sign_result.data.size() > 0) {  // detect succeeded
-                    if (post_target.count(sign_result.data[0])) {  // this sign is required to be delivered 
-                        fsm_state = 5;  // goto deliver state
-                        std::cout << "\033[32mReached Deliver State.\033[0m" << std::endl;
-                        last_srv_request = ros::Time::now();
-                    } else {  // this sign is not required to be delivered
+                        getLengthBetweenPoints(current_pose.pose.position, deliver_position[checking_deliver_point]) < 0.2) {  // detect succeeded
                         checking_deliver_point++;
                         if (checking_deliver_point >= 4) {
-                            fsm_state = 7;  // goto navigate to special sign state
+                            fsm_state = 12;  // goto navigate to special sign state
                             std::cout << "\033[32mReached Navigate to Special Sign State.\033[0m" << std::endl;
                         }
                         last_srv_request = ros::Time::now();
-                    }
                 } else if (ros::Time::now() - last_srv_request > ros::Duration(5000.0)) {  // Timeout, detect failed
                     checking_deliver_point++;
                     if (checking_deliver_point >= 4) {
-                        fsm_state = 7;  // goto navigate to special sign state
+                        fsm_state = 12;  // goto navigate to special sign state
                         std::cout << "\033[32mReached Navigate to Special Sign State.\033[0m" << std::endl;
                     }
                     last_srv_request = ros::Time::now();
@@ -345,41 +319,6 @@ int main(int argc, char **argv) {
                         last_srv_request = ros::Time::now();
                     }
                     twist.twist = get_pid_vel(deliver_position[checking_deliver_point]);
-                }
-                break;
-            case 5:  // Deliver state
-                if (ros::Time::now() - last_srv_request > ros::Duration(4.0)) {  // release catapult
-                    std_msgs::Bool catapult_msg;
-                    catapult_msg.data = true;
-                    catapult_pubs[posted_object].publish(catapult_msg);
-                    fsm_state = 6;  // goto wait for object drop state
-                    std::cout << "\033[32mReached Wait for Object Drop State.\033[0m" << std::endl;
-                    last_srv_request = ros::Time::now();
-                } else {
-                    if (deliver_detect_result.header.stamp > last_srv_request - ros::Duration(1.0)) {
-                        geometry_msgs::Point err;
-                        err.x = deliver_detect_result.width / 2.0 - deliver_detect_result.circles[0].center_x;
-                        err.y = deliver_detect_result.height / 2.0 - deliver_detect_result.circles[0].center_y;
-                        twist.twist = get_pix_pid_vel(err);
-                    }
-                    twist.twist.linear.z = std::max(-0.5, std::min(0.5, working_altitude - current_pose.pose.position.z));
-                }
-                break;
-            case 6:  // Wait for object drop state
-                if (ros::Time::now() - last_srv_request > ros::Duration(1.0)) {
-                    posted_object++;
-                    checking_deliver_point++;
-                    // if 2 blocks are both delivered or 4 deliver point are all checked,
-                    //     goto navigate to special sign state,
-                    // else go back to check deliver point state to check the next.
-                    if (posted_object == 2 || checking_deliver_point == 4) {
-                        std::cout << "\033[32mReached Navigate to Special Sign State.\033[0m" << std::endl;
-                        fsm_state = 7;
-                    } else {
-                        std::cout << "\033[32mReached Check Deliver Point State.\033[0m" << std::endl;
-                        fsm_state = 4;
-                        last_srv_request = ros::Time::now();
-                    }
                 }
                 break;
             case 7:  // Navigate to special sign state
@@ -421,35 +360,6 @@ int main(int argc, char **argv) {
                         err.y = deliver_detect_result.height / 2.0 - deliver_detect_result.circles[0].center_y;
                         twist.twist = get_pix_pid_vel(err);
                     }
-                    twist.twist.linear.z = std::max(-0.5, std::min(0.5, working_altitude - current_pose.pose.position.z));
-                    twist.twist.angular.z = std::max(-1.57, std::min(1.57, -current_rpy.z));
-                }
-                break;
-            case 10:  // Special wait for object drop state
-                if (ros::Time::now() - last_srv_request > ros::Duration(1.0)) {
-                    geometry_msgs::PoseStamped move_base_msg;
-                    move_base_msg.header.frame_id = "map";
-                    move_base_msg.pose.position = land_target == "left" ? left_land_position : right_land_position;
-                    move_base_msg.pose.orientation.w = -1.0;
-                    goal_pub.publish(move_base_msg);
-                    if (land_target == "left") {  // goto wait for navigate to left/right land position state
-                        fsm_state = 11;
-                        std::cout << "\033[32mReached Wait for Navigate to Left Land Position State.\033[0m" << std::endl;
-                    } else {
-                        fsm_state = 12;
-                        std::cout << "\033[32mReached Wait for Navigate to Right Land Position State.\033[0m" << std::endl;
-                    }
-                }
-                break;
-            case 11:  // Wait for navigate to left land position state
-                if (getLengthBetweenPoints(left_land_position, current_pose.pose.position) < 0.3) {
-                    actionlib_msgs::GoalID cancel_msg;
-                    cancel_pub.publish(cancel_msg);
-                    fsm_state = 13;  // goto accurately land state
-                    std::cout << "\033[32mReached Accurately Land State.\033[0m" << std::endl;
-                    last_srv_request = ros::Time::now();
-                } else {
-                    twist.twist = move_base_twist;
                     twist.twist.linear.z = std::max(-0.5, std::min(0.5, working_altitude - current_pose.pose.position.z));
                     twist.twist.angular.z = std::max(-1.57, std::min(1.57, -current_rpy.z));
                 }
