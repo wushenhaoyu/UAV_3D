@@ -1,0 +1,5 @@
+# 忽略ROS工作空间中的build目录
+build/
+
+# 忽略ROS工作空间中的devel目录
+devel/
