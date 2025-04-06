@@ -61,29 +61,6 @@ void move_base_cmd_vel_cb(const geometry_msgs::Twist::ConstPtr &msg) {
     move_base_twist = *msg;
 }
 
-tutorial_vision::CircleDetectResult parking_detect_result;
-void parking_cb(const tutorial_vision::CircleDetectResult::ConstPtr &msg) {
-    parking_detect_result = *msg;
-    if (msg->header.stamp == ros::Time(0)) parking_detect_result.header.stamp = ros::Time::now();
-}
-
-tutorial_vision::CircleDetectResult deliver_detect_result;
-void deliver_cb(const tutorial_vision::CircleDetectResult::ConstPtr &msg) {
-    deliver_detect_result = *msg;
-    if (msg->header.stamp == ros::Time(0)) deliver_detect_result.header.stamp = ros::Time::now();
-}
-
-tutorial_vision::StringStamped qr_result;
-void qr_cb(const tutorial_vision::StringStamped::ConstPtr &msg) {
-    qr_result = *msg;
-    if (msg->header.stamp == ros::Time(0)) qr_result.header.stamp = ros::Time::now();
-}
-
-tutorial_vision::StringStamped sign_result;
-void yolo_cb(const tutorial_vision::StringStamped::ConstPtr &msg) {
-    sign_result = *msg;
-    if (msg->header.stamp == ros::Time(0)) sign_result.header.stamp = ros::Time::now();
-}
 
 geometry_msgs::Point last_err;
 geometry_msgs::Point err_sum;
@@ -175,13 +152,6 @@ geometry_msgs::Twist get_pix_pid_vel(geometry_msgs::Point err) {
     return ret;
 }
 
-void analyseQrMessage(const std::string &str, std::unordered_set<std::string> &post_target, std::string &land_target) {
-    std::vector<std::string> split;
-    boost::split(split, str, boost::is_any_of(","), boost::token_compress_on);
-    post_target.insert(split[0]);
-    post_target.insert(split[1]);
-    land_target = split[2];
-}
 
 int main(int argc, char **argv) {
     ros::init(argc, argv, "navigation_node");
@@ -189,18 +159,10 @@ int main(int argc, char **argv) {
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>("mavros/state", 1, state_cb);
     ros::Subscriber local_pose_sub = nh.subscribe<geometry_msgs::PoseStamped>("mavros/local_position/pose", 1, pose_cb);
     ros::Subscriber move_base_cmd_sub = nh.subscribe<geometry_msgs::Twist>("cmd_vel", 1, move_base_cmd_vel_cb);
-    ros::Subscriber parking_sub = nh.subscribe<tutorial_vision::CircleDetectResult>("parking_detect_result", 1, parking_cb);
-    ros::Subscriber deliver_sub = nh.subscribe<tutorial_vision::CircleDetectResult>("deliver_detect_result", 1, deliver_cb);
-    ros::Subscriber qr_sub = nh.subscribe<tutorial_vision::StringStamped>("qr_detect_result", 1, qr_cb);
-    ros::Subscriber yolo_sub = nh.subscribe<tutorial_vision::StringStamped>("yolo_detect", 1, yolo_cb);
     ros::Publisher vel_pub = nh.advertise<geometry_msgs::TwistStamped>("mavros/setpoint_velocity/cmd_vel", 1);
     ros::Publisher goal_pub = nh.advertise<geometry_msgs::PoseStamped>("move_base_simple/goal", 1);
     ros::Publisher cancel_pub = nh.advertise<actionlib_msgs::GoalID>("move_base/cancel", 1);
-    std::vector<ros::Publisher> catapult_pubs = {
-        nh.advertise<std_msgs::Bool>("servo/small_1", 1),
-        nh.advertise<std_msgs::Bool>("servo/large", 1),
-        nh.advertise<std_msgs::Bool>("servo/small_2", 1)
-    };
+
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>("mavros/cmd/arming");
     ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
     
@@ -299,7 +261,6 @@ int main(int argc, char **argv) {
                 break;
             case 4:  // Check deliver point state
                  if (ros::Time::now() - last_srv_request > ros::Duration(1.0) &&
-                        sign_result.header.stamp > last_srv_request &&
                         getLengthBetweenPoints(current_pose.pose.position, deliver_position[checking_deliver_point]) < 0.2) {  // detect succeeded
                         checking_deliver_point++;
                         if (checking_deliver_point >= 4) {
@@ -321,7 +282,7 @@ int main(int argc, char **argv) {
                     twist.twist = get_pid_vel(deliver_position[checking_deliver_point]);
                 }
                 break;
-            case 7:  // Navigate to special sign state
+            /*case 7:  // Navigate to special sign state
                 {
                     geometry_msgs::PoseStamped move_base_msg;
                     move_base_msg.header.frame_id = "map";
@@ -363,12 +324,12 @@ int main(int argc, char **argv) {
                     twist.twist.linear.z = std::max(-0.5, std::min(0.5, working_altitude - current_pose.pose.position.z));
                     twist.twist.angular.z = std::max(-1.57, std::min(1.57, -current_rpy.z));
                 }
-                break;
+                break;*/
             case 12:  // Wait for navigate to right land position state
                 if (getLengthBetweenPoints(right_land_position, current_pose.pose.position) < 0.3) {
                     actionlib_msgs::GoalID cancel_msg;
                     cancel_pub.publish(cancel_msg);
-                    fsm_state = 13;  // goto accurately land state
+                    fsm_state = 100;  // goto accurately land state
                     std::cout << "\033[32mReached Accurately Land State.\033[0m" << std::endl;
                     last_srv_request = ros::Time::now();
                 } else {
@@ -377,7 +338,7 @@ int main(int argc, char **argv) {
                     twist.twist.angular.z = std::max(-1.57, std::min(1.57, -current_rpy.z));
                 }
                 break;
-            case 13:  // Accurately land state
+            /*case 13:  // Accurately land state
                 if (current_pose.pose.position.z < 0.1) {
                     fsm_state = 100;  // goto land state
                     std::cout << "\033[32mReached Land State.\033[0m" << std::endl;
@@ -388,7 +349,7 @@ int main(int argc, char **argv) {
                     twist.twist = get_pix_pid_vel(err);
                     twist.twist.linear.z = -0.1;
                 }
-                break;
+                break;*/
             case 100:  // Land state
                 if (current_state.mode == "AUTO.LAND") {
                     fsm_state = -1;  // goto do nothing state
