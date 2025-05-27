@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<launch>
+   <include file="$(find tutorial_basic)/launch/mavros.launch" />
+  <include file="$(find tutorial_navigation)/launch/mid360.launch" />
+</launch>
+
