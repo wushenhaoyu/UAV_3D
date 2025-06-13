@@ -16,6 +16,11 @@
 #include <tutorial_vision/CircleDetectResult.h>
 #include <tutorial_vision/StringStamped.h>
 
+
+
+
+
+
 #define VEL_P 1.0
 #define VEL_I 0.0
 #define VEL_D 0.0
@@ -47,8 +52,9 @@ void state_cb(const mavros_msgs::State::ConstPtr &msg) {
     current_state = *msg;
 }
 
-geometry_msgs::PoseStamped current_pose;
+
 geometry_msgs::Vector3 current_rpy;
+geometry_msgs::PoseStamped current_pose;
 void pose_cb(const geometry_msgs::PoseStamped::ConstPtr &msg) {
     current_pose = *msg;
     tf::Quaternion quaternion;
@@ -152,6 +158,41 @@ geometry_msgs::Twist get_pix_pid_vel(geometry_msgs::Point err) {
     return ret;
 }
 
+#define ALTITUDE 1.2 //飞行高度
+int fsm_state = 0;
+int fly_task_state = 0;
+ros::Time last_srv_request = ros::Time::now();
+
+
+void logTime()
+{
+    last_srv_request = ros::Time::now();
+}
+
+geometry_msgs::Twist runFlyTask()
+{
+    geometry_msgs::Twist twist;
+    switch(fly_task_state)
+    {
+        case 0:
+
+        break;
+    }
+    return twist;
+}
+
+geometry_msgs::Twist flyToPoint(geometry_msgs::Point target_point)
+{
+    geometry_msgs::Twist twist;
+    if(ros::Time::now() - last_srv_request > ros::Duration(1.0) && getLengthBetweenPoints(current_pose.pose.position, target_point) < 0.1)
+    {
+        fly_task_state += 1;
+    }else{
+        twist = get_pid_vel(target_point);
+    }
+    return twist;
+}
+
 
 int main(int argc, char **argv) {
     ros::init(argc, argv, "navigation_node");
@@ -166,8 +207,7 @@ int main(int argc, char **argv) {
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>("mavros/cmd/arming");
     ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
     
-    ros::NodeHandle param_nh("~");
-    double working_altitude = param_nh.param("working_altitude", 1.0);
+
 
     // Wait for FCU connection
     ros::Rate rate(20.0);
@@ -175,42 +215,29 @@ int main(int argc, char **argv) {
         ros::spinOnce();
         rate.sleep();
     }
-    
-    geometry_msgs::Point qr_position;
-    qr_position.x = 1.8;
-    qr_position.y = 0.0;
-    qr_position.z = working_altitude;
+    geometry_msgs::Point land_point;
+    land_point.x = 0.0;
+    land_point.y = 1.6;
+    land_point.z = ALTITUDE;
+
     geometry_msgs::Point deliver_position[4];
     deliver_position[0].x = 0.5;
     deliver_position[0].y = 0;
-    deliver_position[0].z = working_altitude;
+    deliver_position[0].z = ALTITUDE;
     deliver_position[1].x = 0.5;
     deliver_position[1].y = 0.5;
-    deliver_position[1].z = working_altitude;
+    deliver_position[1].z = ALTITUDE;
     deliver_position[2].x = 0;
     deliver_position[2].y = 0.5;
-    deliver_position[2].z = working_altitude;
+    deliver_position[2].z = ALTITUDE;
     deliver_position[3].x = 0;
     deliver_position[3].y = 0;
-    deliver_position[3].z = working_altitude;
-    geometry_msgs::Point special_deliver_position;
-    special_deliver_position.x = 6.0;
-    special_deliver_position.y = 1.0;
-    special_deliver_position.z = working_altitude;
-    geometry_msgs::Point left_land_position, right_land_position;
-    left_land_position.x = 0.0;
-    left_land_position.y = 1.6;
-    left_land_position.z = working_altitude;
-    right_land_position.x = 0.0;
-    right_land_position.y = 0.0;
-    right_land_position.z = working_altitude;
-    
-    int fsm_state = 0;
+    deliver_position[3].z = ALTITUDE;
+
     int checking_deliver_point = 0;
-    int posted_object = 0;
-    std::unordered_set<std::string> post_target;
-    std::string land_target;
-    ros::Time last_srv_request = ros::Time::now();
+    //int posted_object = 0;
+    //std::unordered_set<std::string> post_target;
+    //std::string land_target;
     std::cout << "\033[32mReached Offboard State.\033[0m" << std::endl;
     while (ros::ok()) {
         //std::cout << posted_object << "/2 " << checking_deliver_point << "/4" << std::endl;
@@ -220,39 +247,17 @@ int main(int argc, char **argv) {
                 if (current_state.mode == "OFFBOARD") {
                     fsm_state = 1;  // goto arm state
                     std::cout << "\033[32mReached Arm State.\033[0m" << std::endl;
-                } else {
-/*                    if (ros::Time::now() - last_srv_request > ros::Duration(1.0)) {
-                        mavros_msgs::SetMode offb_set_mode;
-                        offb_set_mode.request.custom_mode = "OFFBOARD";
-                        if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent) {
-                            ROS_INFO("Offboard enabled");
-                        } else {
-                            ROS_WARN("Failed to enable offboard");
-                        }
-                        last_srv_request = ros::Time::now();
-                    }*/
                 }
                 break;
             case 1:  // Arm state
                 if (current_state.armed) {
                     fsm_state = 2;  // goto takeoff state
                     std::cout << "\033[32mReached Takeoff State.\033[0m" << std::endl;
-                } else {
-                   /* if (ros::Time::now() - last_srv_request > ros::Duration(1.0)) {
-                        mavros_msgs::CommandBool arm_cmd;
-                        arm_cmd.request.value = true;
-                        if (arming_client.call(arm_cmd) && arm_cmd.response.success) {
-                            ROS_INFO("Vehicle armed");
-                        } else {
-                            ROS_WARN("Failed to arm vehicle");
-                        }
-                        last_srv_request = ros::Time::now();
-                    }*/
-                }
+                } 
                 break;
             case 2:  // Takeoff state
-                if (current_pose.pose.position.z > working_altitude) {
-                    fsm_state = 4;  // goto scan qr state
+                if (current_pose.pose.position.z > ALTITUDE) {
+                    fsm_state = 4;  // goto task
                     std::cout << "\033[32mReached Scan QR State.\033[0m" << std::endl;
                     last_srv_request = ros::Time::now();
                 } else {
@@ -264,14 +269,14 @@ int main(int argc, char **argv) {
                         getLengthBetweenPoints(current_pose.pose.position, deliver_position[checking_deliver_point]) < 0.1) {  // detect succeeded
                         checking_deliver_point++;
                         if (checking_deliver_point >= 4) {
-                            fsm_state = 12;  // goto navigate to special sign state
+                            fsm_state = 5;  // goto navigate to special sign state
                             std::cout << "\033[32mReached Navigate to Special Sign State.\033[0m" << std::endl;
                         }
                         last_srv_request = ros::Time::now();
                 } else if (ros::Time::now() - last_srv_request > ros::Duration(5000.0)) {  // Timeout, detect failed
                     checking_deliver_point++;
                     if (checking_deliver_point >= 4) {
-                        fsm_state = 12;  // goto navigate to special sign state
+                        fsm_state = 5;  // goto navigate to special sign state
                         std::cout << "\033[32mReached Navigate to Special Sign State.\033[0m" << std::endl;
                     }
                     last_srv_request = ros::Time::now();
@@ -302,7 +307,7 @@ int main(int argc, char **argv) {
                     last_srv_request = ros::Time::now();
                 } else {
                     twist.twist = move_base_twist;
-                    twist.twist.linear.z = std::max(-0.5, std::min(0.5, working_altitude - current_pose.pose.position.z));
+                    twist.twist.linear.z = std::max(-0.5, std::min(0.5, ALTITUDE - current_pose.pose.position.z));
                     twist.twist.angular.z = std::max(-1.57, std::min(1.57, -current_rpy.z));
                 }
                 break;
@@ -321,12 +326,12 @@ int main(int argc, char **argv) {
                         err.y = deliver_detect_result.height / 2.0 - deliver_detect_result.circles[0].center_y;
                         twist.twist = get_pix_pid_vel(err);
                     }
-                    twist.twist.linear.z = std::max(-0.5, std::min(0.5, working_altitude - current_pose.pose.position.z));
+                    twist.twist.linear.z = std::max(-0.5, std::min(0.5, ALTITUDE - current_pose.pose.position.z));
                     twist.twist.angular.z = std::max(-1.57, std::min(1.57, -current_rpy.z));
                 }
                 break;*/
-            case 12:  // Wait for navigate to right land position state
-                if (getLengthBetweenPoints(right_land_position, current_pose.pose.position) < 0.1) {
+            case 5:  // Wait for navigate to right land position state
+                if (getLengthBetweenPoints(land_point, current_pose.pose.position) < 0.1) {
                     actionlib_msgs::GoalID cancel_msg;
                     cancel_pub.publish(cancel_msg);
                     fsm_state = 100;  // goto accurately land state
@@ -334,7 +339,7 @@ int main(int argc, char **argv) {
                     last_srv_request = ros::Time::now();
                 } else {
                     twist.twist = move_base_twist;
-                    twist.twist.linear.z = std::max(-0.5, std::min(0.5, working_altitude - current_pose.pose.position.z));
+                    twist.twist.linear.z = std::max(-0.5, std::min(0.5, ALTITUDE - current_pose.pose.position.z));
                     twist.twist.angular.z = std::max(-1.57, std::min(1.57, -current_rpy.z));
                 }
                 break;
@@ -358,7 +363,6 @@ int main(int argc, char **argv) {
                         mavros_msgs::SetMode land_set_mode;
                         land_set_mode.request.custom_mode = "AUTO.LAND";
                         set_mode_client.call(land_set_mode);
-                        last_srv_request = ros::Time::now();
                     }
                 } else {
                     twist.twist.linear.z = -0.2;

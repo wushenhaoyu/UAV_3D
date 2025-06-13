@@ -11,6 +11,7 @@ import rosbag
 class IMUSerialNode:
     def __init__(self):
         rospy.init_node('serial_node', log_level=rospy.INFO)
+        self.serial_port = serial.Serial('/dev/imu', 115200, timeout=1)
         self.buffer = bytearray()
         self.receiving = False
         self.length = 0
