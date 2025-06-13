@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="sign_x" default="1"/>
+    <arg name="sign_y" default="0"/>
+    <arg name="sign_z" default="1"/>
+    
+    <arg name="run_mavros" default="true"/>
+    <arg name="run_driver" default="true"/>
+    <arg name="run_detector" default="true"/>
+    <arg name="run_fast_lio" default="true"/>
+    
+    <arg name="yolov5_root" default="$(env HOME)/Libraries/yolov5"/>
+    <arg name="weights_path" default="$(find tutorial_vision)/model/example.pt"/>
+    <arg name="device" default="cuda:0"/>
+    <arg name="confidence" default="0.85"/>
+
+    <node pkg="tutorial_vision" type="yolo_detect_node" name="yolo_detect" output="screen">
+        <param name="sign_x" value="$(arg sign_x)"/>
+        <param name="sign_y" value="$(arg sign_y)"/>
+        <param name="sign_z" value="$(arg sign_z)"/>
+    </node>
+    <include file="$(find tutorial_basic)/launch/mavros.launch" if="$(arg run_mavros)"/>
+    <include file="$(find tutorial_vision)/launch/simple_camera_driver.launch" if="$(arg run_driver)"/>
+    <include file="$(find tutorial_vision)/launch/yolov5.launch" if="$(arg run_detector)">
+        <arg name="yolov5_root" value="$(arg yolov5_root)"/>
+        <arg name="weights_path" value="$(arg weights_path)"/>
+        <arg name="device" value="$(arg device)"/>
+        <arg name="confidence" value="$(arg confidence)"/>
+    </include>
+    <include file="$(find tutorial_navigation)/launch/mid360.launch" if="$(arg run_fast_lio)"/>
+</launch>

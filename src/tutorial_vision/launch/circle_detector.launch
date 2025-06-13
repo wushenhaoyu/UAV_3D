@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="run_driver" default="false"/>
+    <arg name="dp" default="1"/>
+    <arg name="minDist" default="20"/>
+    <arg name="param1" default="50"/>
+    <arg name="param2" default="100"/>
+    <arg name="minRadius" default="70"/>
+    <arg name="maxRadius" default="500"/>
+    <arg name="pubImg" default="true"/>
+    
+    <node pkg="tutorial_vision" type="hough_circle_detector.py" name="circle_detector">
+        <param name="dp" value="$(arg dp)"/>
+        <param name="minDist" value="$(arg minDist)"/>
+        <param name="param1" value="$(arg param1)"/>
+        <param name="param2" value="$(arg param2)"/>
+        <param name="minRadius" value="$(arg minRadius)"/>
+        <param name="maxRaudis" value="$(arg maxRadius)"/>
+        <param name="pubImg" value="$(arg pubImg)"/>
+    </node>
+    <include file="$(find tutorial_vision)/launch/simple_camera_driver.launch" if="$(arg run_driver)"/>
+</launch>

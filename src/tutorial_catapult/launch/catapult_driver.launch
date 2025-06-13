@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="large_servo_pin" default="15"/>
+    <arg name="small_servo_1_pin" default="32"/>
+    <arg name="small_servo_2_pin" default="33"/>
+    <arg name="open_width" default="12.0"/>
+    <arg name="close_width" default="3.0"/>
+
+    <node pkg="tutorial_catapult" type="actuator_driver" name="actuator_driver"/>
+</launch> 

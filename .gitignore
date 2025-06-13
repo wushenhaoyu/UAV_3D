@@ -1,0 +1,3 @@
+# 忽略根目录下的 build 和 devel 目录
+/build/
+/devel/

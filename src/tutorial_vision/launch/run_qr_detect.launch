@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="qr_x" default="1"/>
+    <arg name="qr_y" default="0"/>
+    <arg name="qr_z" default="1"/>
+    
+    <arg name="run_mavros" default="true"/>
+    <arg name="run_driver" default="true"/>
+    <arg name="run_detector" default="true"/>
+    <arg name="run_fast_lio" default="true"/>
+
+    <node pkg="tutorial_vision" type="qr_detect_node" name="qr_detect" output="screen">
+        <param name="qr_x" value="$(arg qr_x)"/>
+        <param name="qr_y" value="$(arg qr_y)"/>
+        <param name="qr_z" value="$(arg qr_z)"/>
+    </node>
+    <include file="$(find tutorial_basic)/launch/mavros.launch" if="$(arg run_mavros)"/>
+    <include file="$(find tutorial_vision)/launch/simple_camera_driver.launch" if="$(arg run_driver)"/>
+    <include file="$(find tutorial_vision)/launch/qr_detector.launch" if="$(arg run_detector)"/>
+    <include file="$(find tutorial_navigation)/launch/mid360.launch" if="$(arg run_fast_lio)"/>
+</launch>
