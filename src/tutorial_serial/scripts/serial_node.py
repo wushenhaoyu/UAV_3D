@@ -7,6 +7,7 @@ from geometry_msgs.msg import Point, TransformStamped
 from tf2_ros import StaticTransformBroadcaster
 import tf2_ros
 import rosbag
+from tutorial_vision.msg import StringStamped  # 导入二维码消息类型
 
 class IMUSerialNode:
     def __init__(self):
@@ -17,6 +18,9 @@ class IMUSerialNode:
         self.length = 0
         self.func = 0
         self.current = 0
+
+        # 订阅二维码检测结果
+        self.qr_sub = rospy.Subscriber("qr_detect_result", StringStamped, self.qr_callback)
 
         # TF2 相关
         self.tf_broadcaster = StaticTransformBroadcaster()
@@ -48,6 +52,28 @@ class IMUSerialNode:
 
     def deal_with_data(self, func, length, data):
         rospy.loginfo(data)
+        pass
+
+    def qr_callback(self, msg):
+        try:
+            packet = bytearray()
+            packet.append(0xAA)  # 帧头
+            packet.append(0x01)  # 功能码（自定义）
+            
+            qr_data = ''.join(msg.data).encode('utf-8')
+            data_length = len(qr_data)
+            packet.append(data_length) 
+            
+            packet.extend(qr_data) 
+            packet.append(0xAF)  
+            
+            self.serial_port.write(packet)
+            rospy.loginfo("发送二维码数据: %s", qr_data)
+            
+        except Exception as e:
+            rospy.logerr("串口发送失败: %s", str(e))
+
+    def judge_location():
         pass
 
 

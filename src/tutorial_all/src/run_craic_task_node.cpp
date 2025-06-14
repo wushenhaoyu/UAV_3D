@@ -19,8 +19,6 @@
 
 
 
-
-
 #define VEL_P 1.0
 #define VEL_I 0.0
 #define VEL_D 0.0
@@ -70,10 +68,86 @@ void move_base_cmd_vel_cb(const geometry_msgs::Twist::ConstPtr &msg) {
 
 geometry_msgs::Point last_err;
 geometry_msgs::Point err_sum;
+double yaw_target = 0;
 double last_yaw_err = 0.;
 double yaw_err_sum = 0.;
 ros::Time last_pid_control_time;
-geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target) {
+
+geometry_msgs::Twist get_pid_vel_with_yaw(geometry_msgs::Point target) {
+    ros::Time currentStamp = current_pose.header.stamp;
+    ros::Duration dt = currentStamp - last_pid_control_time;
+    if (dt.toSec() > 0.2) {
+        err_sum.x = 0.;
+        err_sum.y = 0.;
+        err_sum.z = 0.;
+        yaw_err_sum = 0.;
+    }
+
+    geometry_msgs::Point err;
+    double absErr = getLengthBetweenPoints(target, current_pose.pose.position, &err.x, &err.y, &err.z);
+
+    // Yaw 控制部分：维持当前航向靠近目标航向角
+    double yaw_err = target_yaw - current_rpy.z;
+    // 将 yaw 误差限制在 [-π, π] 范围
+    while (yaw_err > M_PI) yaw_err -= 2 * M_PI;
+    while (yaw_err < -M_PI) yaw_err += 2 * M_PI;
+    double dy_err = (yaw_err - last_yaw_err) / dt.toSec();
+
+    geometry_msgs::Twist ret;
+    ret.angular.z = YAW_VEL_P * yaw_err + YAW_VEL_I * yaw_err_sum + YAW_VEL_D * dy_err;
+
+    // === 坐标变换：将误差从全局坐标系转到机体坐标系 ===
+    double yaw = current_rpy.z;
+    double cos_yaw = cos(-yaw);
+    double sin_yaw = sin(-yaw);
+
+    double body_x = err.x * cos_yaw - err.y * sin_yaw;
+    double body_y = err.x * sin_yaw + err.y * cos_yaw;
+    double body_z = err.z;
+
+    if (absErr > 0.8) {
+        double scale = 0.8 / absErr;
+        ret.linear.x = body_x * scale;
+        ret.linear.y = body_y * scale;
+        ret.linear.z = body_z * scale;
+
+        err_sum.x = .0;
+        err_sum.y = .0;
+        err_sum.z = .0;
+    } else {
+        geometry_msgs::Point d_err;
+        d_err.x = (err.x - last_err.x) / dt.toSec();
+        d_err.y = (err.y - last_err.y) / dt.toSec();
+        d_err.z = (err.z - last_err.z) / dt.toSec();
+
+        // 将 d_err 也转换到机体坐标系
+        double d_body_x = d_err.x * cos_yaw - d_err.y * sin_yaw;
+        double d_body_y = d_err.x * sin_yaw + d_err.y * cos_yaw;
+        double d_body_z = d_err.z;
+
+        // 同样对误差积分进行旋转
+        double sum_body_x = err_sum.x * cos_yaw - err_sum.y * sin_yaw;
+        double sum_body_y = err_sum.x * sin_yaw + err_sum.y * cos_yaw;
+        double sum_body_z = err_sum.z;
+
+        ret.linear.x = VEL_P * body_x + VEL_I * sum_body_x + VEL_D * d_body_x;
+        ret.linear.y = VEL_P * body_y + VEL_I * sum_body_y + VEL_D * d_body_y;
+        ret.linear.z = VEL_P * body_z + VEL_I * sum_body_z + VEL_D * d_body_z;
+
+        err_sum.x += err.x * dt.toSec();
+        err_sum.y += err.y * dt.toSec();
+        err_sum.z += err.z * dt.toSec();
+    }
+
+    last_err = err;
+    last_yaw_err = yaw_err;
+    yaw_err_sum += yaw_err * dt.toSec();
+    last_pid_control_time = currentStamp;
+
+    return ret;
+}
+
+/*geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target) {
     ros::Time currentStamp = current_pose.header.stamp;
     ros::Duration dt = currentStamp - last_pid_control_time;
     if (dt.toSec() > 0.2) {
@@ -121,7 +195,7 @@ geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target) {
     last_pid_control_time = currentStamp;
     
     return ret;
-}
+}*/
 
 geometry_msgs::Point pix_last_err;
 geometry_msgs::Point pix_err_sum;
@@ -158,7 +232,7 @@ geometry_msgs::Twist get_pix_pid_vel(geometry_msgs::Point err) {
     return ret;
 }
 
-#define ALTITUDE 1.2 //飞行高度
+#define ALTITUDE 1.4 //飞行高度
 int fsm_state = 0;
 int fly_task_state = 0;
 bool point_arrive_flag = false;
@@ -203,6 +277,62 @@ geometry_msgs::Twist flyToPoint(double x, double y, double z, double stop_time)
     return twist;
 }
 
+/*
+ * @brief : 转化对应 yaw，0 为起飞前方（+X），1 为后方（-X），2 为左方（+Y），3 为右方（-Y）
+ * @param : direction 方向编号
+ * @return: yaw 弧度 [−π, π]
+ */
+double transYAW(int direction)
+{
+    switch (direction) {
+        case 0:  // 前方（+X）
+            return 0.0;
+        case 1:  // 后方（-X）
+            return M_PI;
+        case 2:  // 左方（+Y）
+            return M_PI_2;  // M_PI / 2
+        case 3:  // 右方（-Y）
+            return -M_PI_2;  // -M_PI / 2
+        default:
+            ROS_WARN("Invalid direction: %d. Defaulting to 0 yaw.", direction);
+            return 0.0;
+    }
+}
+
+/*
+ * @brief : 改变目标 yaw，0 为起飞前方（+X），1 为后方（-X），2 为左方（+Y），3 为右方（-Y）
+ * @param : direction 方向编号
+ * @return: yaw 弧度 [−π, π]
+ */
+
+geometry_msgs::Twist changeYaw(double x, double y, double z, int target_direction)
+{
+    geometry_msgs::Twist twist;
+    yaw_target = transYAW(target_direction); 
+    geometry_msgs::Point target_point;
+    target_point.x = x;
+    target_point.y = y;
+    target_point.z = z;
+    if (getLengthBetweenPoints(current_pose.pose.position, target_point) < 0.1 && target_yaw - current_rpy.z < M_PI / 30)
+    {
+        if(point_arrive_flag == false)
+        {
+            point_arrive_flag = true;
+            logTime();
+        }
+        if (point_arrive_flag == true)
+        {
+                fly_task_state += 1;
+                point_arrive_flag = false;
+                logTime();
+        }  
+    }
+    twist = get_pid_vel(target_point);
+    return twist;
+}
+
+
+
 geometry_msgs::Twist endFlyTask()
 {
     fsm_state = 100;
@@ -228,6 +358,34 @@ geometry_msgs::Twist runFlyTask()
         case 3:
             flyToPoint(0,0,ALTITUDE,1);
         break;
+        case 4:
+            endFlyTask();
+        break;
+    }
+    return twist;
+}
+
+geometry_msgs::Twist runFlyTask_2024()
+/*2024电赛题目*/
+{
+    geometry_msgs::Twist twist;
+    switch(fly_task_state)
+    {
+        case 0:
+            flyToPoint(0.0,2.0,1.4,1);
+        break;
+        case 1:
+            flyToPoint(0.0,2.0,1.0,1);
+        break;
+        case 2:
+            flyToPoint(0.0,-0.1,1.0,1);
+        break;
+        case 3:
+            flyToPoint(1.75,-0.1,1.0,1);
+        break;
+        case 4:
+            changeYAW(1.75,0.0,1.0,1);
+            
         case 4:
             endFlyTask();
         break;
@@ -264,19 +422,6 @@ int main(int argc, char **argv) {
     land_point.y = 1.6;
     land_point.z = ALTITUDE;
 
-    geometry_msgs::Point deliver_position[4];
-    deliver_position[0].x = 0.5;
-    deliver_position[0].y = 0;
-    deliver_position[0].z = ALTITUDE;
-    deliver_position[1].x = 0.5;
-    deliver_position[1].y = 0.5;
-    deliver_position[1].z = ALTITUDE;
-    deliver_position[2].x = 0;
-    deliver_position[2].y = 0.5;
-    deliver_position[2].z = ALTITUDE;
-    deliver_position[3].x = 0;
-    deliver_position[3].y = 0;
-    deliver_position[3].z = ALTITUDE;
 
     int checking_deliver_point = 0;
     //int posted_object = 0;
@@ -310,6 +455,7 @@ int main(int argc, char **argv) {
                 break;
             case 4:  // Check deliver point state
                 runFlyTask();
+                break;
             /*case 7:  // Navigate to special sign state
                 {
                     geometry_msgs::PoseStamped move_base_msg;
