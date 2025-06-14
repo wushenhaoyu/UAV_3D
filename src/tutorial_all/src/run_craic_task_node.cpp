@@ -161,6 +161,7 @@ geometry_msgs::Twist get_pix_pid_vel(geometry_msgs::Point err) {
 #define ALTITUDE 1.2 //飞行高度
 int fsm_state = 0;
 int fly_task_state = 0;
+bool point_arrive_flag = false;
 ros::Time last_srv_request = ros::Time::now();
 
 
@@ -169,29 +170,73 @@ void logTime()
     last_srv_request = ros::Time::now();
 }
 
+/*
+* @brief  飞到指定点
+* @param  x,y,z 目标点
+* @param  stop_time 停留时间
+*/
+geometry_msgs::Twist flyToPoint(double x, double y, double z, double stop_time)
+{
+    geometry_msgs::Point target_point;
+    target_point.x = x;
+    target_point.y = y;
+    target_point.z = z;
+    geometry_msgs::Twist twist;
+    if(getLengthBetweenPoints(current_pose.pose.position, target_point) < 0.1) //ros::Time::now() - last_srv_request > ros::Duration(1.0) &&
+    {
+        if(point_arrive_flag == false)
+        {
+            point_arrive_flag = true;
+            logTime();
+        }
+        if (point_arrive_flag == true)
+        {
+            if(ros::Time::now() - last_srv_request > ros::Duration(stop_time))
+            {
+                fly_task_state += 1;
+                point_arrive_flag = false;
+                logTime();
+            }
+        }   
+    }
+    twist = get_pid_vel(target_point);
+    return twist;
+}
+
+geometry_msgs::Twist endFlyTask()
+{
+    fsm_state = 100;
+    geometry_msgs::Twist twist;
+    return twist;
+}
+
 geometry_msgs::Twist runFlyTask()
+/*测试飞行，一个方格子*/
 {
     geometry_msgs::Twist twist;
     switch(fly_task_state)
     {
         case 0:
-
+            flyToPoint(0,0.5,ALTITUDE,1);
+        break;
+        case 1:
+            flyToPoint(0.5,0.5,ALTITUDE,1);
+        break;
+        case 2:
+            flyToPoint(0.5,0,ALTITUDE,1);
+        break;
+        case 3:
+            flyToPoint(0,0,ALTITUDE,1);
+        break;
+        case 4:
+            endFlyTask();
         break;
     }
     return twist;
 }
 
-geometry_msgs::Twist flyToPoint(geometry_msgs::Point target_point)
-{
-    geometry_msgs::Twist twist;
-    if(ros::Time::now() - last_srv_request > ros::Duration(1.0) && getLengthBetweenPoints(current_pose.pose.position, target_point) < 0.1)
-    {
-        fly_task_state += 1;
-    }else{
-        twist = get_pid_vel(target_point);
-    }
-    return twist;
-}
+
+
 
 
 int main(int argc, char **argv) {
@@ -203,7 +248,6 @@ int main(int argc, char **argv) {
     ros::Publisher vel_pub = nh.advertise<geometry_msgs::TwistStamped>("mavros/setpoint_velocity/cmd_vel", 1);
     ros::Publisher goal_pub = nh.advertise<geometry_msgs::PoseStamped>("move_base_simple/goal", 1);
     ros::Publisher cancel_pub = nh.advertise<actionlib_msgs::GoalID>("move_base/cancel", 1);
-
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>("mavros/cmd/arming");
     ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
     
@@ -265,28 +309,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 4:  // Check deliver point state
-                 if (ros::Time::now() - last_srv_request > ros::Duration(1.0) &&
-                        getLengthBetweenPoints(current_pose.pose.position, deliver_position[checking_deliver_point]) < 0.1) {  // detect succeeded
-                        checking_deliver_point++;
-                        if (checking_deliver_point >= 4) {
-                            fsm_state = 5;  // goto navigate to special sign state
-                            std::cout << "\033[32mReached Navigate to Special Sign State.\033[0m" << std::endl;
-                        }
-                        last_srv_request = ros::Time::now();
-                } else if (ros::Time::now() - last_srv_request > ros::Duration(5000.0)) {  // Timeout, detect failed
-                    checking_deliver_point++;
-                    if (checking_deliver_point >= 4) {
-                        fsm_state = 5;  // goto navigate to special sign state
-                        std::cout << "\033[32mReached Navigate to Special Sign State.\033[0m" << std::endl;
-                    }
-                    last_srv_request = ros::Time::now();
-                } else {
-                    if (getLengthBetweenPoints(current_pose.pose.position, deliver_position[checking_deliver_point]) > 0.3) {
-                        last_srv_request = ros::Time::now();
-                    }
-                    twist.twist = get_pid_vel(deliver_position[checking_deliver_point]);
-                }
-                break;
+                runFlyTask();
             /*case 7:  // Navigate to special sign state
                 {
                     geometry_msgs::PoseStamped move_base_msg;
@@ -330,11 +353,11 @@ int main(int argc, char **argv) {
                     twist.twist.angular.z = std::max(-1.57, std::min(1.57, -current_rpy.z));
                 }
                 break;*/
-            case 5:  // Wait for navigate to right land position state
+            case 100:  // Wait for navigate to right land position state
                 if (getLengthBetweenPoints(land_point, current_pose.pose.position) < 0.1) {
                     actionlib_msgs::GoalID cancel_msg;
                     cancel_pub.publish(cancel_msg);
-                    fsm_state = 100;  // goto accurately land state
+                    fsm_state = 101;  // goto accurately land state
                     std::cout << "\033[32mReached Accurately Land State.\033[0m" << std::endl;
                     last_srv_request = ros::Time::now();
                 } else {
@@ -355,7 +378,7 @@ int main(int argc, char **argv) {
                     twist.twist.linear.z = -0.1;
                 }
                 break;*/
-            case 100:  // Land state
+            case 101:  // Land state
                 if (current_state.mode == "AUTO.LAND") {
                     fsm_state = -1;  // goto do nothing state
                 } else if (current_pose.pose.position.z < 0.1) {
@@ -371,7 +394,7 @@ int main(int argc, char **argv) {
             default:
                 if (fsm_state != -1) {
                     ROS_FATAL("FATAL ERROR: FSM reaches an invalid state: %d, emergency landing.", fsm_state);
-                    fsm_state = 100;
+                    fsm_state = 101;
                 }
                 break;
         }
