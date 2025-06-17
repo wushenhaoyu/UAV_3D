@@ -68,12 +68,12 @@ void move_base_cmd_vel_cb(const geometry_msgs::Twist::ConstPtr &msg) {
 
 geometry_msgs::Point last_err;
 geometry_msgs::Point err_sum;
-double yaw_target = 0;
+double target_yaw = 0;
 double last_yaw_err = 0.;
 double yaw_err_sum = 0.;
 ros::Time last_pid_control_time;
 
-geometry_msgs::Twist get_pid_vel_with_yaw(geometry_msgs::Point target) {
+geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target) {
     ros::Time currentStamp = current_pose.header.stamp;
     ros::Duration dt = currentStamp - last_pid_control_time;
     if (dt.toSec() > 0.2) {
@@ -320,7 +320,7 @@ double transYAW(int direction)
 geometry_msgs::Twist changeYaw(double x, double y, double z, int target_direction)
 {
     geometry_msgs::Twist twist;
-    yaw_target = transYAW(target_direction); 
+    target_yaw = transYAW(target_direction); 
     geometry_msgs::Point target_point;
     target_point.x = x;
     target_point.y = y;
@@ -398,7 +398,7 @@ geometry_msgs::Twist runFlyTask_2024()
             flyToPoint(1.75,-0.1,1.0,1); //飞到中间
         break;
         case 4:
-            fltToPoint(1.75,2.0,1.0,1);//遍历18、17、16
+            flyToPoint(1.75,2.0,1.0,1);//遍历18、17、16
         break;
         case 5:
             flyToPoint(1.75,2.0,1.4,1); //上升高度
@@ -407,7 +407,7 @@ geometry_msgs::Twist runFlyTask_2024()
             flyToPoint(1.75,0.0,1.4,1);//遍历13、14、15
         break;
         case 7:
-            changeYAW(1.75,0.0,1.4,1);//转180度
+            changeYaw(1.75,0.0,1.4,1);//转180度
         break;
         case 8:
             flyToPoint(1.75,2.0,1.4,1);//遍历7、8、9
