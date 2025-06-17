@@ -10,6 +10,7 @@ import rosbag
 import math
 from tf.transformations import euler_from_quaternion
 from tutorial_vision.msg import StringStamped  # 导入二维码消息类型
+from std_msgs.msg import UInt8
 class IMUSerialNode:
     def __init__(self):
         rospy.init_node('serial_node', log_level=rospy.INFO)
@@ -24,6 +25,9 @@ class IMUSerialNode:
         self.y = 0.0
         self.z = 0.0
         self.yaw = 0.0
+
+        self.target = 0
+        self.fly_target_pub = rospy.Publisher('fly_target', UInt8, queue_size=10)
 
         # 订阅二维码检测结果
         self.qr_sub = rospy.Subscriber("qr_detect_result", StringStamped, self.qr_callback)
@@ -57,8 +61,12 @@ class IMUSerialNode:
                     self.receiving = False
 
     def deal_with_data(self, func, length, data):
-        rospy.loginfo(data)
-        pass
+        if(func == 0x01):
+            self.target = data[0]
+            target_msg = UInt8()
+            target_msg.data = self.target
+            self.fly_target_pub.publish(target_msg)
+
 
     def qr_callback(self, msg):
         try:

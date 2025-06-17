@@ -1,7 +1,7 @@
 #include <vector>
 #include <unordered_set>
 #include <iostream>
-
+#include <std_msgs/Int32.h>  
 #include <boost/algorithm/string.hpp>
 #include <ros/ros.h>
 #include <tf/transform_datatypes.h>
@@ -15,7 +15,7 @@
 
 #include <tutorial_vision/CircleDetectResult.h>
 #include <tutorial_vision/StringStamped.h>
-
+#include <std_msgs/UInt8.h>
 
 
 
@@ -65,6 +65,11 @@ void move_base_cmd_vel_cb(const geometry_msgs::Twist::ConstPtr &msg) {
     move_base_twist = *msg;
 }
 
+int8_t fly_target = 0x00;
+void flyTargetCallback(const std_msgs::UInt8::ConstPtr& msg) {
+    ROS_INFO("接收到 fly_target: %d (十六进制: 0x%X)", msg->data, msg->data);
+    fly_target = msg->data;
+}
 
 geometry_msgs::Point last_err;
 geometry_msgs::Point err_sum;
@@ -377,7 +382,7 @@ geometry_msgs::Twist runFlyTask()
     return twist;
 }
 
-geometry_msgs::Twist runFlyTask_2024()
+geometry_msgs::Twist runFlyTask_2024_1()
 /*
 2024电赛题目,起飞方向朝板子
 */
@@ -437,6 +442,11 @@ geometry_msgs::Twist runFlyTask_2024()
     return twist;
 }
 
+geometry_msgs::Twist runFlyTask_2024_2()
+{
+
+
+}
 
 
 
@@ -447,9 +457,11 @@ int main(int argc, char **argv) {
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>("mavros/state", 1, state_cb);
     ros::Subscriber local_pose_sub = nh.subscribe<geometry_msgs::PoseStamped>("mavros/local_position/pose", 1, pose_cb);
     ros::Subscriber move_base_cmd_sub = nh.subscribe<geometry_msgs::Twist>("cmd_vel", 1, move_base_cmd_vel_cb);
+    ros::Subscriber sub = nh.subscribe("fly_target", 10, fly_target_cb);
     ros::Publisher vel_pub = nh.advertise<geometry_msgs::TwistStamped>("mavros/setpoint_velocity/cmd_vel", 1);
     ros::Publisher goal_pub = nh.advertise<geometry_msgs::PoseStamped>("move_base_simple/goal", 1);
     ros::Publisher cancel_pub = nh.advertise<actionlib_msgs::GoalID>("move_base/cancel", 1);
+    ros::Publisher fly_task_pub = nh.advertise<std_msgs::Int32>("fly_task", 1);
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>("mavros/cmd/arming");
     ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
     
@@ -466,7 +478,7 @@ int main(int argc, char **argv) {
     land_point.y = END_Y;
     land_point.z = END_Z;
 
-
+    int fly_task = 1;
     int checking_deliver_point = 0;
     //int posted_object = 0;
     //std::unordered_set<std::string> post_target;
@@ -474,6 +486,19 @@ int main(int argc, char **argv) {
     std::cout << "\033[32mReached Offboard State.\033[0m" << std::endl;
     while (ros::ok()) {
         //std::cout << posted_object << "/2 " << checking_deliver_point << "/4" << std::endl;
+        if(fsm_state != 0)
+        {
+            if(current_state.mode == "ALTCTL")
+            {
+                fly_task = 1;
+            }else if (current_state.mode == "STABILIZED")
+            {
+                fly_task = 2;
+            }
+            std_msgs::Int32 task_msg;
+            task_msg.data = fly_task;
+            fly_task_pub.publish(task_msg);
+        }
         geometry_msgs::TwistStamped twist;
         switch (fsm_state) {
             case 0:  // Offboard state
@@ -588,6 +613,12 @@ int main(int argc, char **argv) {
                 }
                 break;
         }
+        if (fsm_state > 0 && current_state.mode != "OFFBOARD") {
+            ROS_WARN("OFFBOARD mode lost! Triggering emergency landing.");
+            fsm_state = 101;  // 或其他应急状态
+            last_srv_request = ros::Time::now();
+        }
+
         vel_pub.publish(twist);
         ros::spinOnce();
         rate.sleep();
