@@ -233,6 +233,9 @@ geometry_msgs::Twist get_pix_pid_vel(geometry_msgs::Point err) {
 }
 
 #define ALTITUDE 1.4 //飞行高度
+#define END_X 3.5
+#define END_Y 2.5
+#define END_Z 1.4
 int fsm_state = 0;
 int fly_task_state = 0;
 bool point_arrive_flag = false;
@@ -246,6 +249,15 @@ void logTime()
 
 /*
 * @brief  飞到指定点
+        ^ x
+        |
+        |
+        |
+Y<----------------
+        |
+        |
+        |
+        |
 * @param  x,y,z 目标点
 * @param  stop_time 停留时间
 */
@@ -366,27 +378,59 @@ geometry_msgs::Twist runFlyTask()
 }
 
 geometry_msgs::Twist runFlyTask_2024()
-/*2024电赛题目*/
+/*
+2024电赛题目,起飞方向朝板子
+*/
 {
     geometry_msgs::Twist twist;
     switch(fly_task_state)
     {
         case 0:
-            flyToPoint(0.0,2.0,1.4,1);
+            flyToPoint(0.0,2.0,1.4,1); //遍历前3、2、1点
         break;
         case 1:
-            flyToPoint(0.0,2.0,1.0,1);
+            flyToPoint(0.0,2.0,1.0,1); //下降高度
         break;
         case 2:
-            flyToPoint(0.0,-0.1,1.0,1);
+            flyToPoint(0.0,-0.1,1.0,1); //遍历4、5、6点
         break;
         case 3:
-            flyToPoint(1.75,-0.1,1.0,1);
+            flyToPoint(1.75,-0.1,1.0,1); //飞到中间
         break;
         case 4:
-            changeYAW(1.75,0.0,1.0,1);
-            
-        case 4:
+            fltToPoint(1.75,2.0,1.0,1);//遍历18、17、16
+        break;
+        case 5:
+            flyToPoint(1.75,2.0,1.4,1); //上升高度
+        break;
+        case 6:
+            flyToPoint(1.75,0.0,1.4,1);//遍历13、14、15
+        break;
+        case 7:
+            changeYAW(1.75,0.0,1.4,1);//转180度
+        break;
+        case 8:
+            flyToPoint(1.75,2.0,1.4,1);//遍历7、8、9
+        break;
+        case 9:
+            flyToPoint(1.75,2.0,1.0,1);//下降高度
+        break;
+        case 10:
+            flyToPoint(1.75,-0.1,1.0,1);//遍历12、11、10
+        break;
+        case 11:
+            flyToPoint(3.5,-0.1,1.0,1);//到最后一个板子
+        break;
+        case 12:
+            flyToPoint(3.5,2.0,1.0,1);//遍历22、23、24
+        break;
+        case 13:
+            flyToPoint(3.5,2.0,1.4,1);//上升高度
+        break;
+        case 14:
+            flyToPoint(3.5,0.0,1.4,1);//遍历21、20、19
+        break;
+        case 15:
             endFlyTask();
         break;
     }
@@ -418,9 +462,9 @@ int main(int argc, char **argv) {
         rate.sleep();
     }
     geometry_msgs::Point land_point;
-    land_point.x = 0.0;
-    land_point.y = 1.6;
-    land_point.z = ALTITUDE;
+    land_point.x = END_X;
+    land_point.y = END_Y;
+    land_point.z = END_Z;
 
 
     int checking_deliver_point = 0;
