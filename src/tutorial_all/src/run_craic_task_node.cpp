@@ -66,7 +66,7 @@ void move_base_cmd_vel_cb(const geometry_msgs::Twist::ConstPtr &msg) {
 }
 
 int8_t fly_target = 0x00;
-void flyTargetCallback(const std_msgs::UInt8::ConstPtr& msg) {
+void fly_target_cb(const std_msgs::UInt8::ConstPtr& msg) {
     ROS_INFO("接收到 fly_target: %d (十六进制: 0x%X)", msg->data, msg->data);
     fly_target = msg->data;
 }
@@ -444,8 +444,246 @@ geometry_msgs::Twist runFlyTask_2024_1()
 
 geometry_msgs::Twist runFlyTask_2024_2()
 {
+    geometry_msgs::Twist twist;
+    if(fly_target > 0x00 && fly_target <= 0x06) // 1～6
+    {
+        if(fly_target <= 0x03) //1～3
+        {
+            switch (fly_task_state)
+            {
+            case 0:
+                flyToPoint(0.0,0.0,1.4,1);
+            break;
+            case 1:
+                if(fly_target == 0x03){
+                    flyToPoint(0.0,0.75,1.4,4);
+                }else if(fly_target == 0x02){
+                    flyToPoint(0.0,1.25,1.4,4);
+                }else if (fly_target == 0x01){
+                    flyToPoint(0.0,1.75,1.4,4);
+                }
+            break;
+            case 2:
+                flyToPoint(0.0,-0.1,1.4,1);
+            break;
+            case 3:
+                flyToPoint(3.5,-0.1,1.4,1);
+            break;
+            case 4:
+                endFlyTask();
+            break;  
+            }
+        }else if(fly_target > 0x03) //3～5 
+        {
+            switch (fly_task_state)
+            {
+            case 0:
+                flyToPoint(0.0,0.0,1.0,1);
+            break;
+            case 1:
+                if(fly_target == 0x06){
+                    flyToPoint(0.0,0.75,1.0,4);
+                }else if(fly_target == 0x05){
+                    flyToPoint(0.0,1.25,1.0,4);
+                }else if (fly_target == 0x04){
+                    flyToPoint(0.0,1.75,1.0,4);
+                }
+            break;
+            case 2:
+                flyToPoint(0.0,-0.1,1.0,1);
+            break;
+            case 3:
+                flyToPoint(3.5,-0.1,1.0,1);
+            break;
+            case 4:
+                endFlyTask();
+            break;  
+            }
+        }
+    }else if(fly_target >= 0x07 && fly_target <= 0x18) //7～18
+    {
+        if(fly_target >= 0x07 && fly_target <= 0x12)
+        {
+            if(fly_target > 0x09)
+            {
+                switch (fly_task_state)
+                {
+                case 0:
+                    flyToPoint(1.75,-0.1,1.0,1);
+                break;
+                case 1:
+                    changeYaw(1.75,-0.1,1.0,1);
+                break;
+                case 2:
+                    if(fly_target == 0x10){
+                        flyToPoint(1.75,0.75,1.0,4);
+                    }else if(fly_target == 0x11){
+                        flyToPoint(1.75,1.25,1.0,4);
+                    }else if (fly_target == 0x12){
+                        flyToPoint(1.75,1.75,1.0,4);
+                    }
+                break;
+                case 3:
+                    flyToPoint(1.75,-0.1,1.0,1);
+                break;
+                case 4:
+                    flyToPoint(3.5,-0.1,1.0,1);
+                break;
+                case 5:
+                    endFlyTask();
+                break;  
+                }
+            }else if(fly_target <= 0x09)
+            {
+                switch (fly_task_state)
+                {
+                case 0:
+                    flyToPoint(1.75,-0.1,1.4,1);
+                break;
+                case 1:
+                    changeYaw(1.75,-0.1,1.4,1);
+                break;
+                case 2:
+                    if(fly_target == 0x07){
+                        flyToPoint(1.75,0.75,1.4,4);
+                    }else if(fly_target == 0x08){
+                        flyToPoint(1.75,1.25,1.4,4);
+                    }else if (fly_target == 0x09){
+                        flyToPoint(1.75,1.75,1.4,4);
+                    }
+                break;
+                case 3:
+                    flyToPoint(1.75,-0.1,1.4,1);
+                break;
+                case 4:
+                    flyToPoint(3.5,-0.1,1.4,1);
+                break;
+                case 5:
+                    endFlyTask();
+                break;  
+                }
+            }
+        }else if(fly_target >= 0x13 && fly_target <= 0x18)
+        {
+            if(fly_target > 0x15)
+            {
+                switch (fly_task_state)
+                {
+                case 0:
+                    flyToPoint(1.75,-0.1,1.0,1);
+                break;
+                case 1:
+                    if(fly_target == 0x16){
+                        flyToPoint(1.75,0.75,1.0,4);
+                    }else if(fly_target == 0x17){
+                        flyToPoint(1.75,1.25,1.0,4);
+                    }else if (fly_target == 0x18){
+                        flyToPoint(1.75,1.75,1.0,4);
+                    }
+                break;
+                case 2:
+                    flyToPoint(1.75,-0.1,1.0,1);
+                break;
+                case 3:
+                    flyToPoint(3.5,-0.1,1.0,1);
+                break;
+                case 4:
+                    endFlyTask();
+                break;  
+                }
+            }else if(fly_target <= 0x15)
+            {
+                switch (fly_task_state)
+                {
+                case 0:
+                    flyToPoint(1.75,-0.1,1.4,1);
+                break;
+                case 1:
+                    if(fly_target == 0x15){
+                        flyToPoint(1.75,0.75,1.4,4);
+                    }else if(fly_target == 0x14){
+                        flyToPoint(1.75,1.25,1.4,4);
+                    }else if (fly_target == 0x13){
+                        flyToPoint(1.75,1.75,1.4,4);
+                    }
+                break;
+                case 2:
+                    flyToPoint(1.75,-0.1,1.4,1);
+                break;
+                case 3:
+                    flyToPoint(3.5,-0.1,1.4,1);
+                break;
+                case 4:
+                    endFlyTask();
+                break;  
+                }
+            }
 
+        }
 
+    }else if(fly_target >= 0x19 && fly_target <= 0x24){
+            if(fly_target > 0x21)
+            {
+                switch (fly_task_state)
+                {
+                case 0:
+                    flyToPoint(3.5,-0.1,1.0,1);
+                break;
+                case 1:
+                    changeYaw(3.5,-0.1,1.0,1);
+                break;
+                case 2:
+                    if(fly_target == 0x22){
+                        flyToPoint(3.5,0.75,1.0,4);
+                    }else if(fly_target == 0x23){
+                        flyToPoint(3.5,1.25,1.0,4);
+                    }else if (fly_target == 0x24){
+                        flyToPoint(3.5,1.75,1.0,4);
+                    }
+                break;
+                case 3:
+                    flyToPoint(3.5,-0.1,1.0,1);
+                break;
+                case 4:
+                    flyToPoint(3.5,-0.1,1.0,1);
+                break;
+                case 5:
+                    endFlyTask();
+                break;  
+                }
+            }else if(fly_target <= 0x21)
+            {
+                switch (fly_task_state)
+                {
+                case 0:
+                    flyToPoint(3.5,-0.1,1.4,1);
+                break;
+                case 1:
+                    changeYaw(3.5,-0.1,1.4,1);
+                break;
+                case 2:
+                    if(fly_target == 0x19){
+                        flyToPoint(3.5,0.75,1.4,4);
+                    }else if(fly_target == 0x20){
+                        flyToPoint(3.5,1.25,1.4,4);
+                    }else if (fly_target == 0x21){
+                        flyToPoint(3.5,1.75,1.4,4);
+                    }
+                break;
+                case 3:
+                    flyToPoint(3.5,-0.1,1.4,1);
+                break;
+                case 4:
+                    flyToPoint(3.5,-0.1,1.4,1);
+                break;
+                case 5:
+                    endFlyTask();
+                break;  
+                }
+            }
+
+    }
+    return twist;
 }
 
 
