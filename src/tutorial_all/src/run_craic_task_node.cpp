@@ -1,7 +1,7 @@
 #include <vector>
 #include <unordered_set>
 #include <iostream>
-#include <std_msgs/Int32.h>  
+
 #include <boost/algorithm/string.hpp>
 #include <ros/ros.h>
 #include <tf/transform_datatypes.h>
@@ -15,14 +15,11 @@
 
 #include <tutorial_vision/CircleDetectResult.h>
 #include <tutorial_vision/StringStamped.h>
-#include <std_msgs/UInt8.h>
-
-
 
 #define VEL_P 1.0
 #define VEL_I 0.0
 #define VEL_D 0.0
-#define YAW_VEL_P 1.0
+#define YAW_VEL_P 0.8
 #define YAW_VEL_I 0.0
 #define YAW_VEL_D 0.0
 #define PIX_VEL_P 0.001
@@ -50,9 +47,8 @@ void state_cb(const mavros_msgs::State::ConstPtr &msg) {
     current_state = *msg;
 }
 
-
-geometry_msgs::Vector3 current_rpy;
 geometry_msgs::PoseStamped current_pose;
+geometry_msgs::Vector3 current_rpy;
 void pose_cb(const geometry_msgs::PoseStamped::ConstPtr &msg) {
     current_pose = *msg;
     tf::Quaternion quaternion;
@@ -65,19 +61,13 @@ void move_base_cmd_vel_cb(const geometry_msgs::Twist::ConstPtr &msg) {
     move_base_twist = *msg;
 }
 
-int8_t fly_target = 0x00;
-void fly_target_cb(const std_msgs::UInt8::ConstPtr& msg) {
-    ROS_INFO("接收到 fly_target: %d (十六进制: 0x%X)", msg->data, msg->data);
-    fly_target = msg->data;
-}
 
 geometry_msgs::Point last_err;
 geometry_msgs::Point err_sum;
-double target_yaw = 0;
 double last_yaw_err = 0.;
 double yaw_err_sum = 0.;
 ros::Time last_pid_control_time;
-
+double target_yaw = 0;
 geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target) {
     ros::Time currentStamp = current_pose.header.stamp;
     ros::Duration dt = currentStamp - last_pid_control_time;
@@ -152,56 +142,6 @@ geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target) {
     return ret;
 }
 
-/*geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target) {
-    ros::Time currentStamp = current_pose.header.stamp;
-    ros::Duration dt = currentStamp - last_pid_control_time;
-    if (dt.toSec() > 0.2) {
-        err_sum.x = 0.;
-        err_sum.y = 0.;
-        err_sum.z = 0.;
-        yaw_err_sum = 0.;
-    }
-
-    geometry_msgs::Point err;
-    double absErr = getLengthBetweenPoints(target, current_pose.pose.position, &err.x, &err.y, &err.z);
-
-    double y_err = 0. - current_rpy.z;
-    double dy_err = (y_err - last_yaw_err) / dt.toSec();
-
-    geometry_msgs::Twist ret;
-    ret.angular.z = YAW_VEL_P * y_err + YAW_VEL_I * yaw_err_sum + YAW_VEL_D * dy_err;
-
-    if (absErr > 0.8) {
-        ret.linear.x = err.x * 0.8 / absErr;
-        ret.linear.y = err.y * 0.8 / absErr;
-        ret.linear.z = err.z * 0.8 / absErr;
-
-        err_sum.x = .0;
-        err_sum.y = .0;
-        err_sum.z = .0;
-    } else {
-        geometry_msgs::Point d_err;
-        d_err.x = (err.x - last_err.x) / dt.toSec();
-        d_err.y = (err.y - last_err.y) / dt.toSec();
-        d_err.z = (err.z - last_err.z) / dt.toSec();
-
-        ret.linear.x = VEL_P * err.x + VEL_I * err_sum.x + VEL_D * d_err.x;
-        ret.linear.y = VEL_P * err.y + VEL_I * err_sum.y + VEL_D * d_err.y;
-        ret.linear.z = VEL_P * err.z + VEL_I * err_sum.z + VEL_D * d_err.z;
-
-        err_sum.x += err.x * dt.toSec();
-        err_sum.y += err.y * dt.toSec();
-        err_sum.z += err.z * dt.toSec();
-    }
-
-    last_err = err;
-    last_yaw_err = y_err;
-    yaw_err_sum += y_err * dt.toSec();
-    last_pid_control_time = currentStamp;
-    
-    return ret;
-}*/
-
 geometry_msgs::Point pix_last_err;
 geometry_msgs::Point pix_err_sum;
 geometry_msgs::Twist get_pix_pid_vel(geometry_msgs::Point err) {
@@ -237,20 +177,15 @@ geometry_msgs::Twist get_pix_pid_vel(geometry_msgs::Point err) {
     return ret;
 }
 
-#define ALTITUDE 1.4 //飞行高度
-#define END_X 3.5
-#define END_Y 2.5
-#define END_Z 1.4
-int fsm_state = 0;
-int fly_task_state = 0;
-bool point_arrive_flag = false;
-ros::Time last_srv_request = ros::Time::now();
-
-
+ros::Time   last_srv_request;
 void logTime()
 {
     last_srv_request = ros::Time::now();
 }
+
+int fsm_state = 0;
+int fly_task_state = 0;
+bool point_arrive_flag = false;
 
 /*
 * @brief  飞到指定点
@@ -275,6 +210,7 @@ geometry_msgs::Twist flyToPoint(double x, double y, double z, double stop_time)
     geometry_msgs::Twist twist;
     if(getLengthBetweenPoints(current_pose.pose.position, target_point) < 0.1) //ros::Time::now() - last_srv_request > ros::Duration(1.0) &&
     {
+	ROS_INFO("stopping in the target point!");
         if(point_arrive_flag == false)
         {
             point_arrive_flag = true;
@@ -286,9 +222,12 @@ geometry_msgs::Twist flyToPoint(double x, double y, double z, double stop_time)
             {
                 fly_task_state += 1;
                 point_arrive_flag = false;
+                std::cout << "\033[32mComplete a fly task\033[0m" << std::endl;
                 logTime();
             }
         }   
+    }else{
+	ROS_INFO("Moving to target point!");
     }
     twist = get_pid_vel(target_point);
     return twist;
@@ -341,13 +280,13 @@ geometry_msgs::Twist changeYaw(double x, double y, double z, int target_directio
         {
                 fly_task_state += 1;
                 point_arrive_flag = false;
+                std::cout << "\033[32mComplete Yaw Change\033[0m" << std::endl;
                 logTime();
         }  
     }
     twist = get_pid_vel(target_point);
     return twist;
 }
-
 
 
 geometry_msgs::Twist endFlyTask()
@@ -357,23 +296,48 @@ geometry_msgs::Twist endFlyTask()
     return twist;
 }
 
-geometry_msgs::Twist runFlyTask()
+geometry_msgs::Twist runFlyTask1()
 /*测试飞行，一个方格子*/
 {
     geometry_msgs::Twist twist;
     switch(fly_task_state)
     {
         case 0:
-            flyToPoint(0,0.5,ALTITUDE,1);
+            twist = flyToPoint(0.5,0.0,1.0,1);
         break;
         case 1:
-            flyToPoint(0.5,0.5,ALTITUDE,1);
+            twist = flyToPoint(0.5,0.5,1.0,1);
         break;
         case 2:
-            flyToPoint(0.5,0,ALTITUDE,1);
+            twist = flyToPoint(0.0,0.5,1.0,1);
         break;
         case 3:
-            flyToPoint(0,0,ALTITUDE,1);
+            twist = flyToPoint(0,0,1.0,1);
+        break;
+        case 4:
+            endFlyTask();
+        break;
+    }
+    return twist;
+}
+
+geometry_msgs::Twist runFlyTask2()
+/*测试飞行，一个方格子*/
+{
+    geometry_msgs::Twist twist;
+    switch(fly_task_state)
+    {
+        case 0:
+            twist = changeYaw(0,0,0,2);
+        break;
+        case 1:
+            twist = changeYaw(0,0,0,1);
+        break;
+        case 2:
+            twist = changeYaw(0,0,0,3);
+        break;
+        case 3:
+            twist = changeYaw(0,0,0,0);
         break;
         case 4:
             endFlyTask();
@@ -383,57 +347,54 @@ geometry_msgs::Twist runFlyTask()
 }
 
 geometry_msgs::Twist runFlyTask_2024_1()
-/*
-2024电赛题目,起飞方向朝板子
-*/
 {
     geometry_msgs::Twist twist;
     switch(fly_task_state)
     {
         case 0:
-            flyToPoint(0.0,2.0,1.4,1); //遍历前3、2、1点
+            flyToPoint(2.0, 0.0, 1.4, 1); // 遍历前3、2、1点
         break;
         case 1:
-            flyToPoint(0.0,2.0,1.0,1); //下降高度
+            flyToPoint(2.0, 0.0, 1.0, 1); // 下降高度
         break;
         case 2:
-            flyToPoint(0.0,-0.1,1.0,1); //遍历4、5、6点
+            flyToPoint(-0.1, 0.0, 1.0, 1); // 遍历4、5、6点
         break;
         case 3:
-            flyToPoint(1.75,-0.1,1.0,1); //飞到中间
+            flyToPoint(-0.1, 1.75, 1.0, 1); // 飞到中间
         break;
         case 4:
-            flyToPoint(1.75,2.0,1.0,1);//遍历18、17、16
+            flyToPoint(2.0, 1.75, 1.0, 1); // 遍历18、17、16
         break;
         case 5:
-            flyToPoint(1.75,2.0,1.4,1); //上升高度
+            flyToPoint(2.0, 1.75, 1.4, 1); // 上升高度
         break;
         case 6:
-            flyToPoint(1.75,0.0,1.4,1);//遍历13、14、15
+            flyToPoint(0.0, 1.75, 1.4, 1); // 遍历13、14、15
         break;
         case 7:
-            changeYaw(1.75,0.0,1.4,1);//转180度
+            changeYaw(0.0, 1.75, 1.4, 1); // 转180度
         break;
         case 8:
-            flyToPoint(1.75,2.0,1.4,1);//遍历7、8、9
+            flyToPoint(2.0, 1.75, 1.4, 1); // 遍历7、8、9
         break;
         case 9:
-            flyToPoint(1.75,2.0,1.0,1);//下降高度
+            flyToPoint(2.0, 1.75, 1.0, 1); // 下降高度
         break;
         case 10:
-            flyToPoint(1.75,-0.1,1.0,1);//遍历12、11、10
+            flyToPoint(-0.1, 1.75, 1.0, 1); // 遍历12、11、10
         break;
         case 11:
-            flyToPoint(3.5,-0.1,1.0,1);//到最后一个板子
+            flyToPoint(-0.1, 3.5, 1.0, 1); // 到最后一个板子
         break;
         case 12:
-            flyToPoint(3.5,2.0,1.0,1);//遍历22、23、24
+            flyToPoint(2.0, 3.5, 1.0, 1); // 遍历22、23、24
         break;
         case 13:
-            flyToPoint(3.5,2.0,1.4,1);//上升高度
+            flyToPoint(2.0, 3.5, 1.4, 1); // 上升高度
         break;
         case 14:
-            flyToPoint(3.5,0.0,1.4,1);//遍历21、20、19
+            flyToPoint(0.0, 3.5, 1.4, 1); // 遍历21、20、19
         break;
         case 15:
             endFlyTask();
@@ -452,48 +413,48 @@ geometry_msgs::Twist runFlyTask_2024_2()
             switch (fly_task_state)
             {
             case 0:
-                flyToPoint(0.0,0.0,1.4,1);
+                flyToPoint(0.0, 0.0, 1.4, 1);
             break;
             case 1:
                 if(fly_target == 0x03){
-                    flyToPoint(0.0,0.75,1.4,4);
+                    flyToPoint(0.75, 0.0, 1.4, 4);
                 }else if(fly_target == 0x02){
-                    flyToPoint(0.0,1.25,1.4,4);
+                    flyToPoint(1.25, 0.0, 1.4, 4);
                 }else if (fly_target == 0x01){
-                    flyToPoint(0.0,1.75,1.4,4);
+                    flyToPoint(1.75, 0.0, 1.4, 4);
                 }
             break;
             case 2:
-                flyToPoint(0.0,-0.1,1.4,1);
+                flyToPoint(-0.1, 0.0, 1.4, 1);
             break;
             case 3:
-                flyToPoint(3.5,-0.1,1.4,1);
+                flyToPoint(-0.1, 3.5, 1.4, 1);
             break;
             case 4:
                 endFlyTask();
             break;  
             }
-        }else if(fly_target > 0x03) //3～5 
+        }else if(fly_target > 0x03) //4～6 
         {
             switch (fly_task_state)
             {
             case 0:
-                flyToPoint(0.0,0.0,1.0,1);
+                flyToPoint(0.0, 0.0, 1.0, 1);
             break;
             case 1:
                 if(fly_target == 0x06){
-                    flyToPoint(0.0,0.75,1.0,4);
+                    flyToPoint(0.75, 0.0, 1.0, 4);
                 }else if(fly_target == 0x05){
-                    flyToPoint(0.0,1.25,1.0,4);
+                    flyToPoint(1.25, 0.0, 1.0, 4);
                 }else if (fly_target == 0x04){
-                    flyToPoint(0.0,1.75,1.0,4);
+                    flyToPoint(1.75, 0.0, 1.0, 4);
                 }
             break;
             case 2:
-                flyToPoint(0.0,-0.1,1.0,1);
+                flyToPoint(-0.1, 0.0, 1.0, 1);
             break;
             case 3:
-                flyToPoint(3.5,-0.1,1.0,1);
+                flyToPoint(-0.1, 3.5, 1.0, 1);
             break;
             case 4:
                 endFlyTask();
@@ -509,25 +470,25 @@ geometry_msgs::Twist runFlyTask_2024_2()
                 switch (fly_task_state)
                 {
                 case 0:
-                    flyToPoint(1.75,-0.1,1.0,1);
+                    flyToPoint(-0.1, 1.75, 1.0, 1);
                 break;
                 case 1:
-                    changeYaw(1.75,-0.1,1.0,1);
+                    changeYaw(-0.1, 1.75, 1.0, 1);
                 break;
                 case 2:
                     if(fly_target == 0x10){
-                        flyToPoint(1.75,0.75,1.0,4);
+                        flyToPoint(0.75, 1.75, 1.0, 4);
                     }else if(fly_target == 0x11){
-                        flyToPoint(1.75,1.25,1.0,4);
+                        flyToPoint(1.25, 1.75, 1.0, 4);
                     }else if (fly_target == 0x12){
-                        flyToPoint(1.75,1.75,1.0,4);
+                        flyToPoint(1.75, 1.75, 1.0, 4);
                     }
                 break;
                 case 3:
-                    flyToPoint(1.75,-0.1,1.0,1);
+                    flyToPoint(-0.1, 1.75, 1.0, 1);
                 break;
                 case 4:
-                    flyToPoint(3.5,-0.1,1.0,1);
+                    flyToPoint(-0.1, 3.5, 1.0, 1);
                 break;
                 case 5:
                     endFlyTask();
@@ -538,25 +499,25 @@ geometry_msgs::Twist runFlyTask_2024_2()
                 switch (fly_task_state)
                 {
                 case 0:
-                    flyToPoint(1.75,-0.1,1.4,1);
+                    flyToPoint(-0.1, 1.75, 1.4, 1);
                 break;
                 case 1:
-                    changeYaw(1.75,-0.1,1.4,1);
+                    changeYaw(-0.1, 1.75, 1.4, 1);
                 break;
                 case 2:
                     if(fly_target == 0x07){
-                        flyToPoint(1.75,0.75,1.4,4);
+                        flyToPoint(0.75, 1.75, 1.4, 4);
                     }else if(fly_target == 0x08){
-                        flyToPoint(1.75,1.25,1.4,4);
+                        flyToPoint(1.25, 1.75, 1.4, 4);
                     }else if (fly_target == 0x09){
-                        flyToPoint(1.75,1.75,1.4,4);
+                        flyToPoint(1.75, 1.75, 1.4, 4);
                     }
                 break;
                 case 3:
-                    flyToPoint(1.75,-0.1,1.4,1);
+                    flyToPoint(-0.1, 1.75, 1.4, 1);
                 break;
                 case 4:
-                    flyToPoint(3.5,-0.1,1.4,1);
+                    flyToPoint(-0.1, 3.5, 1.4, 1);
                 break;
                 case 5:
                     endFlyTask();
@@ -570,22 +531,22 @@ geometry_msgs::Twist runFlyTask_2024_2()
                 switch (fly_task_state)
                 {
                 case 0:
-                    flyToPoint(1.75,-0.1,1.0,1);
+                    flyToPoint(-0.1, 1.75, 1.0, 1);
                 break;
                 case 1:
                     if(fly_target == 0x16){
-                        flyToPoint(1.75,0.75,1.0,4);
+                        flyToPoint(0.75, 1.75, 1.0, 4);
                     }else if(fly_target == 0x17){
-                        flyToPoint(1.75,1.25,1.0,4);
+                        flyToPoint(1.25, 1.75, 1.0, 4);
                     }else if (fly_target == 0x18){
-                        flyToPoint(1.75,1.75,1.0,4);
+                        flyToPoint(1.75, 1.75, 1.0, 4);
                     }
                 break;
                 case 2:
-                    flyToPoint(1.75,-0.1,1.0,1);
+                    flyToPoint(-0.1, 1.75, 1.0, 1);
                 break;
                 case 3:
-                    flyToPoint(3.5,-0.1,1.0,1);
+                    flyToPoint(-0.1, 3.5, 1.0, 1);
                 break;
                 case 4:
                     endFlyTask();
@@ -596,22 +557,22 @@ geometry_msgs::Twist runFlyTask_2024_2()
                 switch (fly_task_state)
                 {
                 case 0:
-                    flyToPoint(1.75,-0.1,1.4,1);
+                    flyToPoint(-0.1, 1.75, 1.4, 1);
                 break;
                 case 1:
                     if(fly_target == 0x15){
-                        flyToPoint(1.75,0.75,1.4,4);
+                        flyToPoint(0.75, 1.75, 1.4, 4);
                     }else if(fly_target == 0x14){
-                        flyToPoint(1.75,1.25,1.4,4);
+                        flyToPoint(1.25, 1.75, 1.4, 4);
                     }else if (fly_target == 0x13){
-                        flyToPoint(1.75,1.75,1.4,4);
+                        flyToPoint(1.75, 1.75, 1.4, 4);
                     }
                 break;
                 case 2:
-                    flyToPoint(1.75,-0.1,1.4,1);
+                    flyToPoint(-0.1, 1.75, 1.4, 1);
                 break;
                 case 3:
-                    flyToPoint(3.5,-0.1,1.4,1);
+                    flyToPoint(-0.1, 3.5, 1.4, 1);
                 break;
                 case 4:
                     endFlyTask();
@@ -627,25 +588,25 @@ geometry_msgs::Twist runFlyTask_2024_2()
                 switch (fly_task_state)
                 {
                 case 0:
-                    flyToPoint(3.5,-0.1,1.0,1);
+                    flyToPoint(-0.1, 3.5, 1.0, 1);
                 break;
                 case 1:
-                    changeYaw(3.5,-0.1,1.0,1);
+                    changeYaw(-0.1, 3.5, 1.0, 1);
                 break;
                 case 2:
                     if(fly_target == 0x22){
-                        flyToPoint(3.5,0.75,1.0,4);
+                        flyToPoint(0.75, 3.5, 1.0, 4);
                     }else if(fly_target == 0x23){
-                        flyToPoint(3.5,1.25,1.0,4);
+                        flyToPoint(1.25, 3.5, 1.0, 4);
                     }else if (fly_target == 0x24){
-                        flyToPoint(3.5,1.75,1.0,4);
+                        flyToPoint(1.75, 3.5, 1.0, 4);
                     }
                 break;
                 case 3:
-                    flyToPoint(3.5,-0.1,1.0,1);
+                    flyToPoint(-0.1, 3.5, 1.0, 1);
                 break;
                 case 4:
-                    flyToPoint(3.5,-0.1,1.0,1);
+                    flyToPoint(-0.1, 3.5, 1.0, 1);
                 break;
                 case 5:
                     endFlyTask();
@@ -656,25 +617,25 @@ geometry_msgs::Twist runFlyTask_2024_2()
                 switch (fly_task_state)
                 {
                 case 0:
-                    flyToPoint(3.5,-0.1,1.4,1);
+                    flyToPoint(-0.1, 3.5, 1.4, 1);
                 break;
                 case 1:
-                    changeYaw(3.5,-0.1,1.4,1);
+                    changeYaw(-0.1, 3.5, 1.4, 1);
                 break;
                 case 2:
                     if(fly_target == 0x19){
-                        flyToPoint(3.5,0.75,1.4,4);
+                        flyToPoint(0.75, 3.5, 1.4, 4);
                     }else if(fly_target == 0x20){
-                        flyToPoint(3.5,1.25,1.4,4);
+                        flyToPoint(1.25, 3.5, 1.4, 4);
                     }else if (fly_target == 0x21){
-                        flyToPoint(3.5,1.75,1.4,4);
+                        flyToPoint(1.75, 3.5, 1.4, 4);
                     }
                 break;
                 case 3:
-                    flyToPoint(3.5,-0.1,1.4,1);
+                    flyToPoint(-0.1, 3.5, 1.4, 1);
                 break;
                 case 4:
-                    flyToPoint(3.5,-0.1,1.4,1);
+                    flyToPoint(-0.1, 3.5, 1.4, 1);
                 break;
                 case 5:
                     endFlyTask();
@@ -689,21 +650,22 @@ geometry_msgs::Twist runFlyTask_2024_2()
 
 
 
+
 int main(int argc, char **argv) {
     ros::init(argc, argv, "navigation_node");
     ros::NodeHandle nh;
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>("mavros/state", 1, state_cb);
     ros::Subscriber local_pose_sub = nh.subscribe<geometry_msgs::PoseStamped>("mavros/local_position/pose", 1, pose_cb);
     ros::Subscriber move_base_cmd_sub = nh.subscribe<geometry_msgs::Twist>("cmd_vel", 1, move_base_cmd_vel_cb);
-    ros::Subscriber sub = nh.subscribe("fly_target", 10, fly_target_cb);
     ros::Publisher vel_pub = nh.advertise<geometry_msgs::TwistStamped>("mavros/setpoint_velocity/cmd_vel", 1);
     ros::Publisher goal_pub = nh.advertise<geometry_msgs::PoseStamped>("move_base_simple/goal", 1);
     ros::Publisher cancel_pub = nh.advertise<actionlib_msgs::GoalID>("move_base/cancel", 1);
-    ros::Publisher fly_task_pub = nh.advertise<std_msgs::Int32>("fly_task", 1);
+
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>("mavros/cmd/arming");
     ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
     
-
+    ros::NodeHandle param_nh("~");
+    double working_altitude = param_nh.param("working_altitude", 1.0);
 
     // Wait for FCU connection
     ros::Rate rate(20.0);
@@ -711,137 +673,102 @@ int main(int argc, char **argv) {
         ros::spinOnce();
         rate.sleep();
     }
-    geometry_msgs::Point land_point;
-    land_point.x = END_X;
-    land_point.y = END_Y;
-    land_point.z = END_Z;
-
-    int fly_task = 1;
-    int checking_deliver_point = 0;
-    //int posted_object = 0;
-    //std::unordered_set<std::string> post_target;
-    //std::string land_target;
+    
+    geometry_msgs::Point qr_position;
+    qr_position.x = 1.8;
+    qr_position.y = 0.0;
+    qr_position.z = working_altitude;
+    geometry_msgs::Point takeoff_position;
+    takeoff_position.x = 0.0;
+    takeoff_position.y = 0.0;
+    takeoff_position.z = working_altitude;
+    geometry_msgs::Point deliver_position[4];
+    deliver_position[0].x = 0.5;
+    deliver_position[0].y = 0;
+    deliver_position[0].z = working_altitude;
+    deliver_position[1].x = 0.5;
+    deliver_position[1].y = 0.5;
+    deliver_position[1].z = working_altitude;
+    deliver_position[2].x = 0;
+    deliver_position[2].y = 0.5;
+    deliver_position[2].z = working_altitude;
+    deliver_position[3].x = 0;
+    deliver_position[3].y = 0;
+    deliver_position[3].z = working_altitude;
+    geometry_msgs::Point special_deliver_position;
+    special_deliver_position.x = 6.0;
+    special_deliver_position.y = 1.0;
+    special_deliver_position.z = working_altitude;
+    geometry_msgs::Point left_land_position, right_land_position;
+    left_land_position.x = 0.0;
+    left_land_position.y = 0.0;
+    left_land_position.z = 0.4;
+    right_land_position.x = 0.0;
+    right_land_position.y = 0.0;
+    right_land_position.z = working_altitude;
+   int  checking_deliver_point = 0;
+    std::unordered_set<std::string> post_target;
+    std::string land_target;
+    last_srv_request = ros::Time::now();
     std::cout << "\033[32mReached Offboard State.\033[0m" << std::endl;
     while (ros::ok()) {
-        //std::cout << posted_object << "/2 " << checking_deliver_point << "/4" << std::endl;
-        if(fsm_state != 0)
-        {
-            if(current_state.mode == "ALTCTL")
-            {
-                fly_task = 1;
-            }else if (current_state.mode == "STABILIZED")
-            {
-                fly_task = 2;
-            }
-            std_msgs::Int32 task_msg;
-            task_msg.data = fly_task;
-            fly_task_pub.publish(task_msg);
-        }
         geometry_msgs::TwistStamped twist;
         switch (fsm_state) {
             case 0:  // Offboard state
                 if (current_state.mode == "OFFBOARD") {
                     fsm_state = 1;  // goto arm state
                     std::cout << "\033[32mReached Arm State.\033[0m" << std::endl;
+                } else {
+                    ROS_INFO("Waitting for Offboard");
                 }
                 break;
             case 1:  // Arm state
                 if (current_state.armed) {
                     fsm_state = 2;  // goto takeoff state
                     std::cout << "\033[32mReached Takeoff State.\033[0m" << std::endl;
-                } 
+                } else {
+                    ROS_INFO("Waitting for Arm");
+                }
                 break;
             case 2:  // Takeoff state
-                if (current_pose.pose.position.z > ALTITUDE) {
-                    fsm_state = 4;  // goto task
-                    std::cout << "\033[32mReached Scan QR State.\033[0m" << std::endl;
+                if (current_pose.pose.position.z > working_altitude) {
+                    fsm_state = 3;  // goto scan qr state
+                    std::cout << "\033[32mComplete take off.\033[0m" << std::endl;
                     last_srv_request = ros::Time::now();
                 } else {
-                    twist.twist.linear.z = 0.4;
+                    twist.twist = get_pid_vel(takeoff_position);
                 }
                 break;
-            case 4:  // Check deliver point state
-                runFlyTask();
-                break;
-            /*case 7:  // Navigate to special sign state
-                {
-                    geometry_msgs::PoseStamped move_base_msg;
-                    move_base_msg.header.frame_id = "map";
-                    move_base_msg.pose.position = special_deliver_position;
-                    move_base_msg.pose.orientation.w = -1.0;
-                    goal_pub.publish(move_base_msg);
-                    fsm_state = 8;  // goto wait for navigation mission state
-                    std::cout << "\033[32mReached Wait for Navigation Mission State.\033[0m" << std::endl;
-                }
-                break;
-            case 8:  // Wait for navigation mission state
-                if (getLengthBetweenPoints(special_deliver_position, current_pose.pose.position) < 0.3) {
-                    actionlib_msgs::GoalID cancel_msg;
-                    cancel_pub.publish(cancel_msg);
-                    fsm_state = 9;  // goto special deliver state
-                    std::cout << "\033[32mReached Special Deliver State.\033[0m" << std::endl;
-                    last_srv_request = ros::Time::now();
-                } else {
-                    twist.twist = move_base_twist;
-                    twist.twist.linear.z = std::max(-0.5, std::min(0.5, ALTITUDE - current_pose.pose.position.z));
-                    twist.twist.angular.z = std::max(-1.57, std::min(1.57, -current_rpy.z));
-                }
-                break;
-            case 9:  // Special deliver state
-                if (ros::Time::now() - last_srv_request > ros::Duration(4.0)) {  // release catapult
-                    std_msgs::Bool catapult_msg;
-                    catapult_msg.data = true;
-                    catapult_pubs[posted_object].publish(catapult_msg);
-                    fsm_state = 10;  // goto special wait for object drop state
-                    std::cout << "\033[32mReached Special Wait for Object Drop State.\033[0m" << std::endl;
-                    last_srv_request = ros::Time::now();
-                } else {
-                    if (deliver_detect_result.header.stamp > last_srv_request - ros::Duration(1.0)) {
-                        geometry_msgs::Point err;
-                        err.x = deliver_detect_result.width / 2.0 - deliver_detect_result.circles[0].center_x;
-                        err.y = deliver_detect_result.height / 2.0 - deliver_detect_result.circles[0].center_y;
-                        twist.twist = get_pix_pid_vel(err);
-                    }
-                    twist.twist.linear.z = std::max(-0.5, std::min(0.5, ALTITUDE - current_pose.pose.position.z));
-                    twist.twist.angular.z = std::max(-1.57, std::min(1.57, -current_rpy.z));
-                }
-                break;*/
+            case 3:  // Check deliver point state
+              twist.twist = runFlyTask2();
+               break;
             case 100:  // Wait for navigate to right land position state
-                if (getLengthBetweenPoints(land_point, current_pose.pose.position) < 0.1) {
+                if (getLengthBetweenPoints(right_land_position, current_pose.pose.position) < 0.1) {
                     actionlib_msgs::GoalID cancel_msg;
                     cancel_pub.publish(cancel_msg);
                     fsm_state = 101;  // goto accurately land state
                     std::cout << "\033[32mReached Accurately Land State.\033[0m" << std::endl;
                     last_srv_request = ros::Time::now();
                 } else {
-                    twist.twist = move_base_twist;
-                    twist.twist.linear.z = std::max(-0.5, std::min(0.5, ALTITUDE - current_pose.pose.position.z));
-                    twist.twist.angular.z = std::max(-1.57, std::min(1.57, -current_rpy.z));
+                    twist.twist = get_pid_vel(right_land_position);
+                    /*twist.twist = move_base_twist;
+                    twist.twist.linear.z = std::max(-0.5, std::min(0.5, working_altitude - current_pose.pose.position.z));
+                    twist.twist.angular.z = std::max(-1.57, std::min(1.57, -current_rpy.z));*/
                 }
                 break;
-            /*case 13:  // Accurately land state
-                if (current_pose.pose.position.z < 0.1) {
-                    fsm_state = 100;  // goto land state
-                    std::cout << "\033[32mReached Land State.\033[0m" << std::endl;
-                } else if (parking_detect_result.header.stamp > last_srv_request && parking_detect_result.circles.size() > 0) {
-                    geometry_msgs::Point err;
-                    err.x = parking_detect_result.width / 2.0 - parking_detect_result.circles[0].center_x;
-                    err.y = parking_detect_result.height / 2.0 - parking_detect_result.circles[0].center_y;
-                    twist.twist = get_pix_pid_vel(err);
-                    twist.twist.linear.z = -0.1;
-                }
-                break;*/
             case 101:  // Land state
                 if (current_state.mode == "AUTO.LAND") {
                     fsm_state = -1;  // goto do nothing state
-                } else if (current_pose.pose.position.z < 0.1) {
+                } else if (current_pose.pose.position.z < 0.5) {
                     if (ros::Time::now() - last_srv_request > ros::Duration(0.5)) {
                         mavros_msgs::SetMode land_set_mode;
                         land_set_mode.request.custom_mode = "AUTO.LAND";
                         set_mode_client.call(land_set_mode);
+                        last_srv_request = ros::Time::now();
                     }
                 } else {
-                    twist.twist.linear.z = -0.2;
+		  twist.twist = get_pid_vel(left_land_position);
+                    //twist.twist.linear.z = -0.5;
                 }
                 break;
             default:
@@ -851,12 +778,6 @@ int main(int argc, char **argv) {
                 }
                 break;
         }
-        if (fsm_state > 0 && current_state.mode != "OFFBOARD") {
-            ROS_WARN("OFFBOARD mode lost! Triggering emergency landing.");
-            fsm_state = 101;  // 或其他应急状态
-            last_srv_request = ros::Time::now();
-        }
-
         vel_pub.publish(twist);
         ros::spinOnce();
         rate.sleep();

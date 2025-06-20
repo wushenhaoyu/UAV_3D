@@ -174,14 +174,6 @@ target_link_libraries(yolo_detect_node ${catkin_LIBRARIES})
 #   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 # )
 
-catkin_install_python(PROGRAMS
-  scripts/simple_camera_driver.py
-  scripts/qr_detector.py
-  scripts/hough_circle_detector.py
-  scripts/yolov5_predict.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
-
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
 # install(TARGETS ${PROJECT_NAME}_node
