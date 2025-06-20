@@ -1,7 +1,8 @@
 #include <vector>
 #include <unordered_set>
 #include <iostream>
-
+#include <std_msgs/UInt8.h>
+#include <std_msgs/Int32.h>  
 #include <boost/algorithm/string.hpp>
 #include <ros/ros.h>
 #include <tf/transform_datatypes.h>
@@ -49,17 +50,42 @@ void state_cb(const mavros_msgs::State::ConstPtr &msg) {
 
 geometry_msgs::PoseStamped current_pose;
 geometry_msgs::Vector3 current_rpy;
+geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target);
 void pose_cb(const geometry_msgs::PoseStamped::ConstPtr &msg) {
     current_pose = *msg;
     tf::Quaternion quaternion;
     tf::quaternionMsgToTF(msg->pose.orientation, quaternion);
     tf::Matrix3x3(quaternion).getRPY(current_rpy.x, current_rpy.y, current_rpy.z);
+    ROS_INFO("x:%f,y:%f,z:%f\n", current_pose.pose.position.x, current_pose.pose.position.y, current_pose.pose.position.z);
+    // 输出当前偏航角信息
+    ROS_INFO("yaw:%f\n", current_rpy.z);
+
+    // 定义目标点
+    geometry_msgs::Point target_point;
+    target_point.x = 0;
+    target_point.y = 0;
+    target_point.z = 0;
+
+    // 定义变量接收get_pid_vel函数的返回值
+    geometry_msgs::Twist a;
+    a = get_pid_vel(target_point);
+
+    // 输出计算得到的线速度信息
+    ROS_INFO("dx:%f,dy:%f,dz:%f\n", a.linear.x, a.linear.y, a.linear.z);
+
 }
 
 geometry_msgs::Twist move_base_twist;
 void move_base_cmd_vel_cb(const geometry_msgs::Twist::ConstPtr &msg) {
     move_base_twist = *msg;
 }
+
+int8_t fly_target = 0x00;
+void fly_target_cb(const std_msgs::UInt8::ConstPtr& msg) {
+    ROS_INFO("接收到 fly_target: %d (十六进制: 0x%X)", msg->data, msg->data);
+    fly_target = msg->data;
+}
+
 
 
 geometry_msgs::Point last_err;
@@ -77,35 +103,30 @@ geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target) {
         err_sum.z = 0.;
         yaw_err_sum = 0.;
     }
-
+    // 计算旋转矩阵
+    double cos_theta = std::cos(current_rpy.z);
+    double sin_theta = std::sin(current_rpy.z);
+    // 将目标点坐标转换到局部坐标系
+    double dx = target.x - current_pose.pose.position.x;
+    double dy = target.y - current_pose.pose.position.y;
+    double dz = target.z - current_pose.pose.position.z;
+    double local_x = cos_theta * dx + sin_theta * dy;
+    double local_y = -sin_theta * dx + cos_theta * dy;
+    double local_z = dz;
     geometry_msgs::Point err;
-    double absErr = getLengthBetweenPoints(target, current_pose.pose.position, &err.x, &err.y, &err.z);
-
-    // Yaw 控制部分：维持当前航向靠近目标航向角
-    double yaw_err = target_yaw - current_rpy.z;
-    // 将 yaw 误差限制在 [-π, π] 范围
-    while (yaw_err > M_PI) yaw_err -= 2 * M_PI;
-    while (yaw_err < -M_PI) yaw_err += 2 * M_PI;
-    double dy_err = (yaw_err - last_yaw_err) / dt.toSec();
-
+    // 直接计算两点间距离和误差
+    err.x = local_x - 0;
+    err.y = local_y - 0;
+    err.z = local_z - 0;
+    double absErr = std::sqrt(err.x * err.x + err.y * err.y + err.z * err.z);
+    double y_err = target_yaw - current_rpy.z;
+    double dy_err = (y_err - last_yaw_err) / dt.toSec();
     geometry_msgs::Twist ret;
-    ret.angular.z = YAW_VEL_P * yaw_err + YAW_VEL_I * yaw_err_sum + YAW_VEL_D * dy_err;
-
-    // === 坐标变换：将误差从全局坐标系转到机体坐标系 ===
-    double yaw = current_rpy.z;
-    double cos_yaw = cos(-yaw);
-    double sin_yaw = sin(-yaw);
-
-    double body_x = err.x * cos_yaw - err.y * sin_yaw;
-    double body_y = err.x * sin_yaw + err.y * cos_yaw;
-    double body_z = err.z;
-
+    ret.angular.z = YAW_VEL_P * y_err + YAW_VEL_I * yaw_err_sum + YAW_VEL_D * dy_err;
     if (absErr > 0.8) {
-        double scale = 0.8 / absErr;
-        ret.linear.x = body_x * scale;
-        ret.linear.y = body_y * scale;
-        ret.linear.z = body_z * scale;
-
+        ret.linear.x = err.x * 0.8 / absErr;
+        ret.linear.y = err.y * 0.8 / absErr;
+        ret.linear.z = err.z * 0.8 / absErr;
         err_sum.x = .0;
         err_sum.y = .0;
         err_sum.z = .0;
@@ -114,31 +135,17 @@ geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target) {
         d_err.x = (err.x - last_err.x) / dt.toSec();
         d_err.y = (err.y - last_err.y) / dt.toSec();
         d_err.z = (err.z - last_err.z) / dt.toSec();
-
-        // 将 d_err 也转换到机体坐标系
-        double d_body_x = d_err.x * cos_yaw - d_err.y * sin_yaw;
-        double d_body_y = d_err.x * sin_yaw + d_err.y * cos_yaw;
-        double d_body_z = d_err.z;
-
-        // 同样对误差积分进行旋转
-        double sum_body_x = err_sum.x * cos_yaw - err_sum.y * sin_yaw;
-        double sum_body_y = err_sum.x * sin_yaw + err_sum.y * cos_yaw;
-        double sum_body_z = err_sum.z;
-
-        ret.linear.x = VEL_P * body_x + VEL_I * sum_body_x + VEL_D * d_body_x;
-        ret.linear.y = VEL_P * body_y + VEL_I * sum_body_y + VEL_D * d_body_y;
-        ret.linear.z = VEL_P * body_z + VEL_I * sum_body_z + VEL_D * d_body_z;
-
+        ret.linear.x = VEL_P * err.x + VEL_I * err_sum.x + VEL_D * d_err.x;
+        ret.linear.y = VEL_P * err.y + VEL_I * err_sum.y + VEL_D * d_err.y;
+        ret.linear.z = VEL_P * err.z + VEL_I * err_sum.z + VEL_D * d_err.z;
         err_sum.x += err.x * dt.toSec();
         err_sum.y += err.y * dt.toSec();
         err_sum.z += err.z * dt.toSec();
     }
-
     last_err = err;
-    last_yaw_err = yaw_err;
-    yaw_err_sum += yaw_err * dt.toSec();
+    last_yaw_err = y_err;
+    yaw_err_sum += y_err * dt.toSec();
     last_pid_control_time = currentStamp;
-
     return ret;
 }
 
@@ -241,13 +248,13 @@ geometry_msgs::Twist flyToPoint(double x, double y, double z, double stop_time)
 double transYAW(int direction)
 {
     switch (direction) {
-        case 0:  // 前方（+X）
+        case 0:  // 前方（+Y）
             return 0.0;
-        case 1:  // 后方（-X）
+        case 1:  // 后方（-Y）
             return M_PI;
-        case 2:  // 左方（+Y）
+        case 2:  // 左方（+X）
             return M_PI_2;  // M_PI / 2
-        case 3:  // 右方（-Y）
+        case 3:  // 右方（-X）
             return -M_PI_2;  // -M_PI / 2
         default:
             ROS_WARN("Invalid direction: %d. Defaulting to 0 yaw.", direction);
@@ -269,7 +276,7 @@ geometry_msgs::Twist changeYaw(double x, double y, double z, int target_directio
     target_point.x = x;
     target_point.y = y;
     target_point.z = z;
-    if (getLengthBetweenPoints(current_pose.pose.position, target_point) < 0.1 && target_yaw - current_rpy.z < M_PI / 30)
+    if (getLengthBetweenPoints(current_pose.pose.position, target_point) < 0.1 && target_yaw - current_rpy.z < M_PI / 30 && target_yaw - current_rpy.z > -1 * M_PI / 30)
     {
         if(point_arrive_flag == false)
         {
@@ -283,6 +290,8 @@ geometry_msgs::Twist changeYaw(double x, double y, double z, int target_directio
                 std::cout << "\033[32mComplete Yaw Change\033[0m" << std::endl;
                 logTime();
         }  
+    }else{
+	 std::cout << "\033[32mChanging Yaw~~~\033[0m" << std::endl;
     }
     twist = get_pid_vel(target_point);
     return twist;
@@ -328,16 +337,16 @@ geometry_msgs::Twist runFlyTask2()
     switch(fly_task_state)
     {
         case 0:
-            twist = changeYaw(0,0,0,2);
+            twist = changeYaw(0,0,1.0,2);
         break;
         case 1:
-            twist = changeYaw(0,0,0,1);
+            twist = changeYaw(0,0,1.0,1);
         break;
         case 2:
-            twist = changeYaw(0,0,0,3);
+            twist = changeYaw(0,0,1.0,3);
         break;
         case 3:
-            twist = changeYaw(0,0,0,0);
+            twist = changeYaw(0,0,1.0,0);
         break;
         case 4:
             endFlyTask();
@@ -352,49 +361,49 @@ geometry_msgs::Twist runFlyTask_2024_1()
     switch(fly_task_state)
     {
         case 0:
-            flyToPoint(2.0, 0.0, 1.4, 1); // 遍历前3、2、1点
+            twist = flyToPoint(2.0, 0.0, 1.4, 1); // 遍历前3、2、1点
         break;
         case 1:
-            flyToPoint(2.0, 0.0, 1.0, 1); // 下降高度
+            twist = flyToPoint(2.0, 0.0, 1.0, 1); // 下降高度
         break;
         case 2:
-            flyToPoint(-0.1, 0.0, 1.0, 1); // 遍历4、5、6点
+            twist = flyToPoint(-0.1, 0.0, 1.0, 1); // 遍历4、5、6点
         break;
         case 3:
-            flyToPoint(-0.1, 1.75, 1.0, 1); // 飞到中间
+            twist = flyToPoint(-0.1, 1.75, 1.0, 1); // 飞到中间
         break;
         case 4:
-            flyToPoint(2.0, 1.75, 1.0, 1); // 遍历18、17、16
+            twist = flyToPoint(2.0, 1.75, 1.0, 1); // 遍历18、17、16
         break;
         case 5:
-            flyToPoint(2.0, 1.75, 1.4, 1); // 上升高度
+            twist = flyToPoint(2.0, 1.75, 1.4, 1); // 上升高度
         break;
         case 6:
-            flyToPoint(0.0, 1.75, 1.4, 1); // 遍历13、14、15
+            twist = flyToPoint(0.0, 1.75, 1.4, 1); // 遍历13、14、15
         break;
         case 7:
-            changeYaw(0.0, 1.75, 1.4, 1); // 转180度
+            twist = changeYaw(0.0, 1.75, 1.4, 1); // 转180度
         break;
         case 8:
-            flyToPoint(2.0, 1.75, 1.4, 1); // 遍历7、8、9
+            twist = flyToPoint(2.0, 1.75, 1.4, 1); // 遍历7、8、9
         break;
         case 9:
-            flyToPoint(2.0, 1.75, 1.0, 1); // 下降高度
+            twist = flyToPoint(2.0, 1.75, 1.0, 1); // 下降高度
         break;
         case 10:
-            flyToPoint(-0.1, 1.75, 1.0, 1); // 遍历12、11、10
+            twist = flyToPoint(-0.1, 1.75, 1.0, 1); // 遍历12、11、10
         break;
         case 11:
-            flyToPoint(-0.1, 3.5, 1.0, 1); // 到最后一个板子
+            twist = flyToPoint(-0.1, 3.5, 1.0, 1); // 到最后一个板子
         break;
         case 12:
-            flyToPoint(2.0, 3.5, 1.0, 1); // 遍历22、23、24
+            twist = flyToPoint(2.0, 3.5, 1.0, 1); // 遍历22、23、24
         break;
         case 13:
-            flyToPoint(2.0, 3.5, 1.4, 1); // 上升高度
+            twist = flyToPoint(2.0, 3.5, 1.4, 1); // 上升高度
         break;
         case 14:
-            flyToPoint(0.0, 3.5, 1.4, 1); // 遍历21、20、19
+            twist = flyToPoint(0.0, 3.5, 1.4, 1); // 遍历21、20、19
         break;
         case 15:
             endFlyTask();
@@ -403,9 +412,10 @@ geometry_msgs::Twist runFlyTask_2024_1()
     return twist;
 }
 
-geometry_msgs::Twist runFlyTask_2024_2()
+/*geometry_msgs::Twist runFlyTask_2024_2()
 {
     geometry_msgs::Twist twist;
+    
     if(fly_target > 0x00 && fly_target <= 0x06) // 1～6
     {
         if(fly_target <= 0x03) //1～3
@@ -645,7 +655,7 @@ geometry_msgs::Twist runFlyTask_2024_2()
 
     }
     return twist;
-}
+}*/
 
 
 
@@ -654,19 +664,22 @@ geometry_msgs::Twist runFlyTask_2024_2()
 int main(int argc, char **argv) {
     ros::init(argc, argv, "navigation_node");
     ros::NodeHandle nh;
+    ros::Subscriber fly_target_sub = nh.subscribe("fly_target", 10, fly_target_cb);
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>("mavros/state", 1, state_cb);
     ros::Subscriber local_pose_sub = nh.subscribe<geometry_msgs::PoseStamped>("mavros/local_position/pose", 1, pose_cb);
     ros::Subscriber move_base_cmd_sub = nh.subscribe<geometry_msgs::Twist>("cmd_vel", 1, move_base_cmd_vel_cb);
     ros::Publisher vel_pub = nh.advertise<geometry_msgs::TwistStamped>("mavros/setpoint_velocity/cmd_vel", 1);
     ros::Publisher goal_pub = nh.advertise<geometry_msgs::PoseStamped>("move_base_simple/goal", 1);
     ros::Publisher cancel_pub = nh.advertise<actionlib_msgs::GoalID>("move_base/cancel", 1);
+    ros::Publisher fly_task_pub = nh.advertise<std_msgs::Int32>("fly_task", 1);
+
 
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>("mavros/cmd/arming");
     ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
     
     ros::NodeHandle param_nh("~");
     double working_altitude = param_nh.param("working_altitude", 1.0);
-
+    int fly_task = 1;
     // Wait for FCU connection
     ros::Rate rate(20.0);
     while (ros::ok() && !current_state.connected) {
@@ -712,6 +725,20 @@ int main(int argc, char **argv) {
     last_srv_request = ros::Time::now();
     std::cout << "\033[32mReached Offboard State.\033[0m" << std::endl;
     while (ros::ok()) {
+    if(fsm_state != 0)
+        {
+            if(current_state.mode == "ALTCTL")
+            {
+                fly_task = 1;
+            }else if (current_state.mode == "STABILIZED")
+            {
+                fly_task = 2;
+            }
+            std_msgs::Int32 task_msg;
+            task_msg.data = fly_task;
+            fly_task_pub.publish(task_msg);
+        }
+
         geometry_msgs::TwistStamped twist;
         switch (fsm_state) {
             case 0:  // Offboard state
