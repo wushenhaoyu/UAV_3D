@@ -3,3 +3,5 @@
 `cd src`
 `cd livox_ros_driver2`
 `./build.sh ROS1`
+
+sudo chown -R $USER:$USER /home/flmg/UAV_3D/build/
