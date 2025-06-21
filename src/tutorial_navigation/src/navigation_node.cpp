@@ -135,7 +135,7 @@ int main(int argc, char **argv) {
                 if (current_state.mode == "OFFBOARD") {
                     fsm_state = 1;  // goto before armed state
                 } else {
-                    if (ros::Time::now() - last_srv_request > ros::Duration(1.0)) {
+                    /*if (ros::Time::now() - last_srv_request > ros::Duration(1.0)) {
                         mavros_msgs::SetMode offb_set_mode;
                         offb_set_mode.request.custom_mode = "OFFBOARD";
                         if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent) {
@@ -144,14 +144,14 @@ int main(int argc, char **argv) {
                             ROS_WARN("Failed to enable offboard");
                         }
                         last_srv_request = ros::Time::now();
-                    }
+                    }*/
                 }
                 break;
             case 1:  // After offboard, before armed state
                 if (current_state.armed) {
                     fsm_state = 2;  // goto takeoff state
                 } else {
-                    if (ros::Time::now() - last_srv_request > ros::Duration(1.0)) {
+                    /*if (ros::Time::now() - last_srv_request > ros::Duration(1.0)) {
                         mavros_msgs::CommandBool arm_cmd;
                         arm_cmd.request.value = true;
                         if (arming_client.call(arm_cmd) && arm_cmd.response.success) {
@@ -160,7 +160,7 @@ int main(int argc, char **argv) {
                             ROS_WARN("Failed to arm vehicle");
                         }
                         last_srv_request = ros::Time::now();
-                    }
+                    }*/
                 }
                 break;
             case 2:  // Takeoff state

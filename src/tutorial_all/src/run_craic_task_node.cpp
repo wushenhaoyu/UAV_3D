@@ -17,12 +17,12 @@
 #include <tutorial_vision/CircleDetectResult.h>
 #include <tutorial_vision/StringStamped.h>
 
-#define VEL_P 1.0
-#define VEL_I 0.0
+#define VEL_P 0.4
+#define VEL_I 0.00
 #define VEL_D 0.0
-#define YAW_VEL_P 0.8
+#define YAW_VEL_P 1.2
 #define YAW_VEL_I 0.0
-#define YAW_VEL_D 0.0
+#define YAW_VEL_D 0.000
 #define PIX_VEL_P 0.001
 #define PIX_VEL_I 0.0
 #define PIX_VEL_D 0.0
@@ -50,18 +50,75 @@ void state_cb(const mavros_msgs::State::ConstPtr &msg) {
 
 geometry_msgs::PoseStamped current_pose;
 geometry_msgs::Vector3 current_rpy;
+
+bool yaw_initialized = false;
+double initial_yaw = 0.0;
+
+geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target);
+
+void pose_cb(const geometry_msgs::PoseStamped::ConstPtr &msg) {
+    // 提取四元数并计算当前 yaw
+    tf::Quaternion quaternion;
+    tf::quaternionMsgToTF(msg->pose.orientation, quaternion);
+    double roll, pitch, yaw;
+    tf::Matrix3x3(quaternion).getRPY(roll, pitch, yaw);
+
+    // 初始化起飞方向（只记录一次）
+    if (!yaw_initialized) {
+        initial_yaw = yaw;
+        yaw_initialized = true;
+        ROS_INFO("Yaw initialized at: %.2f degrees", initial_yaw * 180.0 / M_PI);
+    }
+
+    // === 坐标修正（ENU → 起飞系）===
+    double x_enu = msg->pose.position.x;
+    double y_enu = msg->pose.position.y;
+    double x_corr = cos(-initial_yaw) * x_enu - sin(-initial_yaw) * y_enu;
+    double y_corr = sin(-initial_yaw) * x_enu + cos(-initial_yaw) * y_enu;
+
+    // === 姿态修正 ===
+    double yaw_corr = yaw - initial_yaw;
+    while (yaw_corr > M_PI) yaw_corr -= 2 * M_PI;
+    while (yaw_corr < -M_PI) yaw_corr += 2 * M_PI;
+
+    // === 更新 corrected_pose 和 current_rpy ===
+    geometry_msgs::PoseStamped corrected_pose = *msg;
+    corrected_pose.pose.position.x = x_corr;
+    corrected_pose.pose.position.y = y_corr;
+
+    tf::Quaternion corrected_quat;
+    corrected_quat.setRPY(roll, pitch, yaw_corr);
+    tf::quaternionTFToMsg(corrected_quat, corrected_pose.pose.orientation);
+
+    current_pose = corrected_pose;
+    current_rpy.x = roll;
+    current_rpy.y = pitch;
+    current_rpy.z = yaw_corr;
+
+    // === 调用 PID 控制 ===
+    geometry_msgs::Point target_point;
+    target_point.x = 0;
+    target_point.y = 0;
+    target_point.z = 0;
+
+ // geometry_msgs::Twist cmd_vel = get_pid_vel(target_point);
+}
+
+/*
+mavros_msgs::State current_state;
+void state_cb(const mavros_msgs::State::ConstPtr &msg) {
+    current_state = *msg;
+}
+
+geometry_msgs::PoseStamped current_pose;
+geometry_msgs::Vector3 current_rpy;
 geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target);
 void pose_cb(const geometry_msgs::PoseStamped::ConstPtr &msg) {
     current_pose = *msg;
     tf::Quaternion quaternion;
     tf::quaternionMsgToTF(msg->pose.orientation, quaternion);
     tf::Matrix3x3(quaternion).getRPY(current_rpy.x, current_rpy.y, current_rpy.z);
-    ROS_INFO("x:%f,y:%f,z:%f\n", current_pose.pose.position.x, current_pose.pose.position.y, current_pose.pose.position.z);
-    // 输出当前偏航角信息
-    ROS_INFO("yaw:%f\n", current_rpy.z);
-
-    // 定义目标点
-    geometry_msgs::Point target_point;
+        geometry_msgs::Point target_point;
     target_point.x = 0;
     target_point.y = 0;
     target_point.z = 0;
@@ -69,12 +126,7 @@ void pose_cb(const geometry_msgs::PoseStamped::ConstPtr &msg) {
     // 定义变量接收get_pid_vel函数的返回值
     geometry_msgs::Twist a;
     a = get_pid_vel(target_point);
-
-    // 输出计算得到的线速度信息
-    ROS_INFO("dx:%f,dy:%f,dz:%f\n", a.linear.x, a.linear.y, a.linear.z);
-
-}
-
+}*/
 geometry_msgs::Twist move_base_twist;
 void move_base_cmd_vel_cb(const geometry_msgs::Twist::ConstPtr &msg) {
     move_base_twist = *msg;
@@ -94,7 +146,85 @@ double last_yaw_err = 0.;
 double yaw_err_sum = 0.;
 ros::Time last_pid_control_time;
 double target_yaw = 0;
+ros::Duration dt;
 geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target) {
+    ros::Time currentStamp = current_pose.header.stamp;
+    if((currentStamp - last_pid_control_time).toSec() < 0.04)
+    {
+        dt = ros::Duration(0.1);
+    }else{
+        dt = currentStamp - last_pid_control_time;
+    }
+        if (dt.toSec() > 0.2) {
+        err_sum.x = 0.;
+        err_sum.y = 0.;
+        err_sum.z = 0.;
+        yaw_err_sum = 0.;
+    }
+	ROS_INFO("dt: %.6f", dt.toSec());
+
+    geometry_msgs::Point err;
+    double absErr = getLengthBetweenPoints(target, current_pose.pose.position, &err.x, &err.y, &err.z);
+    double y_err = target_yaw - current_rpy.z;
+    double dy_err = (y_err - last_yaw_err) / dt.toSec();
+
+    geometry_msgs::Twist ret;
+    ret.angular.z = YAW_VEL_P * y_err + YAW_VEL_I * yaw_err_sum + YAW_VEL_D * dy_err;
+    ROS_INFO("dy_err:%f\n",dy_err);
+    if (absErr > 0.8) {
+        // 归一化直线接近目标
+        ret.linear.x = err.x * 0.8 / absErr;
+        ret.linear.y = err.y * 0.8 / absErr;
+        ret.linear.z = err.z * 0.8 / absErr;
+
+        err_sum.x = .0;
+        err_sum.y = .0;
+        err_sum.z = .0;
+    } else {
+        geometry_msgs::Point d_err;
+        d_err.x = (err.x - last_err.x) / dt.toSec();
+        d_err.y = (err.y - last_err.y) / dt.toSec();
+        d_err.z = (err.z - last_err.z) / dt.toSec();
+
+        ret.linear.x = VEL_P * err.x + VEL_I * err_sum.x + VEL_D * d_err.x;
+        ret.linear.y = VEL_P * err.y + VEL_I * err_sum.y + VEL_D * d_err.y;
+        ret.linear.z = VEL_P * err.z + VEL_I * err_sum.z + VEL_D * d_err.z;
+
+        err_sum.x += err.x * dt.toSec();
+        err_sum.y += err.y * dt.toSec();
+        err_sum.z += err.z * dt.toSec();
+    }
+
+    // === 将线速度从世界系旋转到机体坐标系 ===
+    double yaw = current_rpy.z;
+    double vx_world = ret.linear.x;
+    double vy_world = ret.linear.y;
+    ret.linear.x =  cos(-yaw) * vx_world - sin(-yaw) * vy_world;
+    ret.linear.y =  sin(-yaw) * vx_world + cos(-yaw) * vy_world;
+
+    // 限幅
+    const double max_linear_velocity = 0.3; // 最大线速度
+    const double max_angular_velocity = M_PI / 6.0; // 最大角速度（30°/s）
+
+//    ret.linear.x = std::max(-max_linear_velocity, std::min(max_linear_velocity, ret.linear.x));
+//    ret.linear.y = std::max(-max_linear_velocity, std::min(max_linear_velocity, ret.linear.y));
+    ret.angular.z = std::max(-max_angular_velocity, std::min(max_angular_velocity, ret.angular.z));
+
+
+    // 状态更新
+    last_err = err;
+    last_yaw_err = y_err;
+    yaw_err_sum += y_err * dt.toSec();
+    last_pid_control_time = currentStamp;
+ROS_INFO("pos[x=%.4f y=%.4f z=%.4f yaw=%.4f] err[x=%.4f y=%.4f z=%.4f yaw=%.4f] cmd[vx=%.4f vy=%.4f vz=%.4f wz=%.4f]",
+         current_pose.pose.position.x, current_pose.pose.position.y, current_pose.pose.position.z, current_rpy.z,
+         err.x, err.y, err.z, y_err,
+         ret.linear.x, ret.linear.y, ret.linear.z, ret.angular.z);
+    return ret;
+}
+
+
+/*geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target) {
     ros::Time currentStamp = current_pose.header.stamp;
     ros::Duration dt = currentStamp - last_pid_control_time;
     if (dt.toSec() > 0.2) {
@@ -146,8 +276,10 @@ geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target) {
     last_yaw_err = y_err;
     yaw_err_sum += y_err * dt.toSec();
     last_pid_control_time = currentStamp;
+    ROS_INFO("x:%f,y:%f,z:%f,yaw:%f\n", current_pose.pose.position.x, current_pose.pose.position.y, current_pose.pose.position.z,current_rpy.z);
+    ROS_INFO("dx:%f,dy:%f,dz:%f,dyaw:%f\n", ret.linear.x, ret.linear.y, ret.linear.z , ret.angular.z);
     return ret;
-}
+}*/
 
 geometry_msgs::Point pix_last_err;
 geometry_msgs::Point pix_err_sum;
@@ -234,7 +366,7 @@ geometry_msgs::Twist flyToPoint(double x, double y, double z, double stop_time)
             }
         }   
     }else{
-	ROS_INFO("Moving to target point!");
+//	ROS_INFO("Moving to target point!");
     }
     twist = get_pid_vel(target_point);
     return twist;
@@ -278,20 +410,12 @@ geometry_msgs::Twist changeYaw(double x, double y, double z, int target_directio
     target_point.z = z;
     if (getLengthBetweenPoints(current_pose.pose.position, target_point) < 0.1 && target_yaw - current_rpy.z < M_PI / 30 && target_yaw - current_rpy.z > -1 * M_PI / 30)
     {
-        if(point_arrive_flag == false)
-        {
-            point_arrive_flag = true;
-            logTime();
-        }
-        if (point_arrive_flag == true)
-        {
+        
                 fly_task_state += 1;
-                point_arrive_flag = false;
                 std::cout << "\033[32mComplete Yaw Change\033[0m" << std::endl;
-                logTime();
-        }  
+                logTime(); 
     }else{
-	 std::cout << "\033[32mChanging Yaw~~~\033[0m" << std::endl;
+//	 std::cout << "\033[32mChanging Yaw~~~\033[0m" << std::endl;
     }
     twist = get_pid_vel(target_point);
     return twist;
@@ -666,7 +790,8 @@ int main(int argc, char **argv) {
     ros::NodeHandle nh;
     ros::Subscriber fly_target_sub = nh.subscribe("fly_target", 10, fly_target_cb);
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>("mavros/state", 1, state_cb);
-    ros::Subscriber local_pose_sub = nh.subscribe<geometry_msgs::PoseStamped>("mavros/local_position/pose", 1, pose_cb);
+    //ros::Subscriber local_pose_sub = nh.subscribe<geometry_msgs::PoseStamped>("mavros/local_position/pose", 1, pose_cb);
+    ros::Subscriber local_pose_sub = nh.subscribe<geometry_msgs::PoseStamped>("mavros/vision_pose/pose", 1, pose_cb);
     ros::Subscriber move_base_cmd_sub = nh.subscribe<geometry_msgs::Twist>("cmd_vel", 1, move_base_cmd_vel_cb);
     ros::Publisher vel_pub = nh.advertise<geometry_msgs::TwistStamped>("mavros/setpoint_velocity/cmd_vel", 1);
     ros::Publisher goal_pub = nh.advertise<geometry_msgs::PoseStamped>("move_base_simple/goal", 1);
@@ -746,7 +871,7 @@ int main(int argc, char **argv) {
                     fsm_state = 1;  // goto arm state
                     std::cout << "\033[32mReached Arm State.\033[0m" << std::endl;
                 } else {
-                    ROS_INFO("Waitting for Offboard");
+                   // ROS_INFO("Waitting for Offboard");
                 }
                 break;
             case 1:  // Arm state
@@ -754,7 +879,7 @@ int main(int argc, char **argv) {
                     fsm_state = 2;  // goto takeoff state
                     std::cout << "\033[32mReached Takeoff State.\033[0m" << std::endl;
                 } else {
-                    ROS_INFO("Waitting for Arm");
+                   // ROS_INFO("Waitting for Arm");
                 }
                 break;
             case 2:  // Takeoff state
@@ -771,8 +896,8 @@ int main(int argc, char **argv) {
                break;
             case 100:  // Wait for navigate to right land position state
                 if (getLengthBetweenPoints(right_land_position, current_pose.pose.position) < 0.1) {
-                    actionlib_msgs::GoalID cancel_msg;
-                    cancel_pub.publish(cancel_msg);
+                    //actionlib_msgs::GoalID cancel_msg;
+                    //cancel_pub.publish(cancel_msg);
                     fsm_state = 101;  // goto accurately land state
                     std::cout << "\033[32mReached Accurately Land State.\033[0m" << std::endl;
                     last_srv_request = ros::Time::now();
@@ -786,7 +911,7 @@ int main(int argc, char **argv) {
             case 101:  // Land state
                 if (current_state.mode == "AUTO.LAND") {
                     fsm_state = -1;  // goto do nothing state
-                } else if (current_pose.pose.position.z < 0.5) {
+                } else if (current_pose.pose.position.z < 0.5 && getLengthBetweenPoints(left_land_position, current_pose.pose.position) < 0.1) {
                     if (ros::Time::now() - last_srv_request > ros::Duration(0.5)) {
                         mavros_msgs::SetMode land_set_mode;
                         land_set_mode.request.custom_mode = "AUTO.LAND";
