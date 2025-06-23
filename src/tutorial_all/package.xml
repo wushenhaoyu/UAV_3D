@@ -48,28 +48,45 @@
   <!--   <test_depend>gtest</test_depend> -->
   <!-- Use doc_depend for packages you need only for building documentation: -->
   <!--   <doc_depend>doxygen</doc_depend> -->
+<!-- 构建依赖 -->
   <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>roscpp</build_depend>
-  <build_depend>tf</build_depend>
-  <build_depend>geometry_msgs</build_depend>
-  <build_depend>mavros_msgs</build_depend>
-  <build_depend>std_msgs</build_depend>
-  <build_depend>actionlib_msgs</build_depend>
-  <build_depend>tutorial_vision</build_depend>
-  <build_export_depend>roscpp</build_export_depend>
-  <build_export_depend>tf</build_export_depend>
-  <build_export_depend>geometry_msgs</build_export_depend>
-  <build_export_depend>mavros_msgs</build_export_depend>
-  <build_export_depend>std_msgs</build_export_depend>
-  <build_export_depend>actionlib_msgs</build_export_depend>
-  <build_export_depend>tutorial_vision</build_export_depend>
-  <exec_depend>roscpp</exec_depend>
-  <exec_depend>tf</exec_depend>
-  <exec_depend>geometry_msgs</exec_depend>
-  <exec_depend>mavros_msgs</exec_depend>
-  <exec_depend>std_msgs</exec_depend>
-  <exec_depend>actionlib_msgs</exec_depend>
-  <exec_depend>tutorial_vision</exec_depend>
+
+
+<build_depend>roscpp</build_depend>
+<build_depend>tf</build_depend>
+<build_depend>geometry_msgs</build_depend>
+<build_depend>mavros_msgs</build_depend>
+<build_depend>std_msgs</build_depend>
+<build_depend>actionlib_msgs</build_depend>
+<build_depend>tutorial_vision</build_depend>
+<build_depend>nav_msgs</build_depend>          <!-- 新增 -->
+<build_depend>move_base_msgs</build_depend>    <!-- 新增 -->
+<build_depend>actionlib</build_depend>         <!-- 新增 -->
+
+<!-- 构建导出依赖 -->
+<build_export_depend>roscpp</build_export_depend>
+<build_export_depend>tf</build_export_depend>
+<build_export_depend>geometry_msgs</build_export_depend>
+<build_export_depend>mavros_msgs</build_export_depend>
+<build_export_depend>std_msgs</build_export_depend>
+<build_export_depend>actionlib_msgs</build_export_depend>
+<build_export_depend>tutorial_vision</build_export_depend>
+<build_export_depend>nav_msgs</build_export_depend>          <!-- 新增 -->
+<build_export_depend>move_base_msgs</build_export_depend>    <!-- 新增 -->
+<build_export_depend>actionlib</build_export_depend>         <!-- 新增 -->
+
+<!-- 执行依赖 -->
+<exec_depend>roscpp</exec_depend>
+<exec_depend>tf</exec_depend>
+<exec_depend>geometry_msgs</exec_depend>
+<exec_depend>mavros_msgs</exec_depend>
+<exec_depend>std_msgs</exec_depend>
+<exec_depend>actionlib_msgs</exec_depend>
+<exec_depend>tutorial_vision</exec_depend>
+<exec_depend>nav_msgs</exec_depend>          <!-- 新增 -->
+<exec_depend>move_base_msgs</exec_depend>    <!-- 新增 -->
+<exec_depend>actionlib</exec_depend>         <!-- 新增 -->
+  
 
 
   <!-- The export tag contains other, unspecified, tags -->

@@ -220,7 +220,7 @@ ROS_INFO("pos[x=%.4f y=%.4f z=%.4f yaw=%.4f] err[x=%.4f y=%.4f z=%.4f yaw=%.4f] 
          current_pose.pose.position.x, current_pose.pose.position.y, current_pose.pose.position.z, current_rpy.z,
          err.x, err.y, err.z, y_err,
          ret.linear.x, ret.linear.y, ret.linear.z, ret.angular.z);
-    return ret;
+    	return ret;
 }
 
 
@@ -892,7 +892,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 3:  // Check deliver point state
-              twist.twist = runFlyTask2();
+              twist.twist = runFlyTask1();
                break;
             case 100:  // Wait for navigate to right land position state
                 if (getLengthBetweenPoints(right_land_position, current_pose.pose.position) < 0.1) {

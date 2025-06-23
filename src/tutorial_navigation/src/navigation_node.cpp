@@ -115,8 +115,8 @@ int main(int argc, char **argv) {
     // Get hovering location in parameters
     geometry_msgs::Point nav_target;
     ros::NodeHandle param_nh("~");
-    nav_target.x = param_nh.param("target_x", 0.);
-    nav_target.y = param_nh.param("target_y", 0.);
+    nav_target.x = param_nh.param("target_x", 1.);
+    nav_target.y = param_nh.param("target_y", 1.);
     nav_target.z = param_nh.param("target_z", 1.);
 
     // Wait for FCU connection
@@ -176,7 +176,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 3:  // Navigation state
-                if (getLengthBetweenPoints(nav_target, current_pose.pose.position) < 0.3) {
+                if (getLengthBetweenPoints(nav_target, current_pose.pose.position) < 0.1) {
                     fsm_state = 4;  // goto hover state
                     actionlib_msgs::GoalID cancel_msg;
                     cancel_pub.publish(cancel_msg);
