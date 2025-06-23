@@ -35,6 +35,8 @@ float init_position_x_take_off =0;
 float init_position_y_take_off =0;
 float init_position_z_take_off =0;
 bool  flag_init_position = false;
+double initial_yaw = 0.0;
+bool flag_init_yaw = false;
 nav_msgs::Odometry local_pos;
 geometry_msgs::PoseStamped pose;
 bool point_arrive_flag = false;
@@ -87,6 +89,20 @@ void local_pos_cb(const nav_msgs::Odometry::ConstPtr& msg)
     }
     tf::quaternionMsgToTF(local_pos.pose.pose.orientation, quat);	
 	tf::Matrix3x3(quat).getRPY(roll, pitch, yaw);
+    if (!flag_init_yaw)
+    {
+        initial_yaw = yaw;
+        flag_init_yaw = true;
+        ROS_INFO("Initial yaw recorded: %.2f deg", initial_yaw * 180.0 / M_PI);
+    }
+}
+
+void convert_body_to_enu(double x_body, double y_body, double &x_enu, double &y_enu)
+{
+    double cos_yaw = cos(initial_yaw);
+    double sin_yaw = sin(initial_yaw);
+    x_enu = x_body * cos_yaw - y_body * sin_yaw;
+    y_enu = x_body * sin_yaw + y_body * cos_yaw;
 }
 
 double getLengthBetweenPoints(double *out_err_x = nullptr, double *out_err_y = nullptr) {
@@ -130,6 +146,10 @@ void fly_to_point(double x, double y, double z,double stop_time)
     pose.pose.position.x = x;
     pose.pose.position.y = y;
     pose.pose.position.z = z;
+}
+
+void change_yaw(){
+    
 }
 
 int main(int argc, char **argv) {
@@ -183,12 +203,14 @@ int main(int argc, char **argv) {
             case 0:
                 if(current_state.mode != "OFFBOARD"){
                     fsm_state = 1;
+                    last_request = ros::Time::now();
                     std::cout << "\033[32mReached Arm State.\033[0m" << std::endl;
                 }
                 break;
             case 1:
                 if(current_state.armed){
                     fsm_state = 2;
+                    last_request = ros::Time::now();
                     std::cout << "\033[32mReached Takeoff State.\033[0m" << std::endl;
                 }
                 break;
@@ -196,6 +218,7 @@ int main(int argc, char **argv) {
                 if(getHeightBetweenPoints() < 0.1 && ros::Time::now() - last_request > ros::Duration(1.0))
                 {
                     fsm_state = 3;
+                    last_request = ros::Time::now();
                     std::cout << "\033[32mReached Fly State.\033[0m" << std::endl;
                 }else{
                     pose.pose.position.x = init_position_x_take_off;
