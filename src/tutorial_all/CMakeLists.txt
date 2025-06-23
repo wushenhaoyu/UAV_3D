@@ -139,6 +139,7 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(run_craic_task_node src/run_craic_task_node.cpp)
 add_executable(offboard_mult src/offboard_mult.cpp)
+add_executable(mine src/mine.cpp)
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -149,9 +150,11 @@ add_executable(offboard_mult src/offboard_mult.cpp)
 ## same as for the library above
 add_dependencies(run_craic_task_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(offboard_mult ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(mine ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 ## Specify libraries to link a library or executable target against
 target_link_libraries(run_craic_task_node ${catkin_LIBRARIES})
 target_link_libraries(offboard_mult ${catkin_LIBRARIES})
+target_link_libraries(mine ${catkin_LIBRARIES})
 #############
 ## Install ##
 #############

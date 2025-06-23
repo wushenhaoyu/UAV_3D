@@ -17,15 +17,15 @@
 #include <tutorial_vision/CircleDetectResult.h>
 #include <tutorial_vision/StringStamped.h>
 
-#define VEL_P 0.4
-#define VEL_I 0.00
-#define VEL_D 0.0
-#define YAW_VEL_P 1.2
-#define YAW_VEL_I 0.0
-#define YAW_VEL_D 0.000
-#define PIX_VEL_P 0.001
-#define PIX_VEL_I 0.0
-#define PIX_VEL_D 0.0
+#define POS_P 0.4
+#define POS_I 0.00
+#define POS_D 0.0
+#define YAW_POS_P 1.2
+#define YAW_POS_I 0.0
+#define YAW_POS_D 0.000
+#define PIX_POS_P 0.001
+#define PIX_POS_I 0.0
+#define PIX_POS_D 0.0
 
 double getLengthBetweenPoints(geometry_msgs::Point a, double x, double y, double z,
                               double *out_err_x = nullptr, double *out_err_y = nullptr, double *out_err_z = nullptr) {
@@ -41,6 +41,12 @@ double getLengthBetweenPoints(geometry_msgs::Point a, double x, double y, double
 double getLengthBetweenPoints(geometry_msgs::Point a, geometry_msgs::Point b,
                               double *out_err_x = nullptr, double *out_err_y = nullptr, double *out_err_z = nullptr) {
     return getLengthBetweenPoints(a, b.x, b.y, b.z, out_err_x, out_err_y, out_err_z);
+}
+
+double normalize_angle(double angle) {
+    while (angle > M_PI) angle -= 2 * M_PI;
+    while (angle < -M_PI) angle += 2 * M_PI;
+    return angle;
 }
 
 mavros_msgs::State current_state;
@@ -138,6 +144,13 @@ void fly_target_cb(const std_msgs::UInt8::ConstPtr& msg) {
     fly_target = msg->data;
 }
 
+geometry_msgs::Twist current_vel;
+
+void vel_cb(const geometry_msgs::TwistStamped::ConstPtr& msg) {
+    current_vel = msg->twist;  // 包含线速度（x, y, z）和角速度
+}
+
+
 
 
 geometry_msgs::Point last_err;
@@ -165,11 +178,11 @@ geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target) {
 
     geometry_msgs::Point err;
     double absErr = getLengthBetweenPoints(target, current_pose.pose.position, &err.x, &err.y, &err.z);
-    double y_err = target_yaw - current_rpy.z;
+    double y_err = normalize_angle(target_yaw - current_rpy.z);
     double dy_err = (y_err - last_yaw_err) / dt.toSec();
 
     geometry_msgs::Twist ret;
-    ret.angular.z = YAW_VEL_P * y_err + YAW_VEL_I * yaw_err_sum + YAW_VEL_D * dy_err;
+    ret.angular.z = YAW_POS_P * y_err + YAW_POS_I * yaw_err_sum + YAW_POS_D * dy_err;
     ROS_INFO("dy_err:%f\n",dy_err);
     if (absErr > 0.8) {
         // 归一化直线接近目标
@@ -186,9 +199,9 @@ geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target) {
         d_err.y = (err.y - last_err.y) / dt.toSec();
         d_err.z = (err.z - last_err.z) / dt.toSec();
 
-        ret.linear.x = VEL_P * err.x + VEL_I * err_sum.x + VEL_D * d_err.x;
-        ret.linear.y = VEL_P * err.y + VEL_I * err_sum.y + VEL_D * d_err.y;
-        ret.linear.z = VEL_P * err.z + VEL_I * err_sum.z + VEL_D * d_err.z;
+        ret.linear.x = POS_P * err.x + POS_I * err_sum.x + POS_D * d_err.x;
+        ret.linear.y = POS_P * err.y + POS_I * err_sum.y + POS_D * d_err.y;
+        ret.linear.z = POS_P * err.z + POS_I * err_sum.z + POS_D * d_err.z;
 
         err_sum.x += err.x * dt.toSec();
         err_sum.y += err.y * dt.toSec();
@@ -203,11 +216,11 @@ geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target) {
     ret.linear.y =  sin(-yaw) * vx_world + cos(-yaw) * vy_world;
 
     // 限幅
-    const double max_linear_velocity = 0.3; // 最大线速度
+    const double max_linear_velocity = 0.4; // 最大线速度
     const double max_angular_velocity = M_PI / 6.0; // 最大角速度（30°/s）
 
-//    ret.linear.x = std::max(-max_linear_velocity, std::min(max_linear_velocity, ret.linear.x));
-//    ret.linear.y = std::max(-max_linear_velocity, std::min(max_linear_velocity, ret.linear.y));
+    ret.linear.x = std::max(-max_linear_velocity, std::min(max_linear_velocity, ret.linear.x));
+    ret.linear.y = std::max(-max_linear_velocity, std::min(max_linear_velocity, ret.linear.y));
     ret.angular.z = std::max(-max_angular_velocity, std::min(max_angular_velocity, ret.angular.z));
 
 
@@ -216,7 +229,7 @@ geometry_msgs::Twist get_pid_vel(geometry_msgs::Point target) {
     last_yaw_err = y_err;
     yaw_err_sum += y_err * dt.toSec();
     last_pid_control_time = currentStamp;
-ROS_INFO("pos[x=%.4f y=%.4f z=%.4f yaw=%.4f] err[x=%.4f y=%.4f z=%.4f yaw=%.4f] cmd[vx=%.4f vy=%.4f vz=%.4f wz=%.4f]",
+    ROS_INFO("pos[x=%.4f y=%.4f z=%.4f yaw=%.4f] err[x=%.4f y=%.4f z=%.4f yaw=%.4f] cmd[vx=%.4f vy=%.4f vz=%.4f wz=%.4f]",
          current_pose.pose.position.x, current_pose.pose.position.y, current_pose.pose.position.z, current_rpy.z,
          err.x, err.y, err.z, y_err,
          ret.linear.x, ret.linear.y, ret.linear.z, ret.angular.z);
@@ -296,14 +309,14 @@ geometry_msgs::Twist get_pix_pid_vel(geometry_msgs::Point err) {
     double dy_err = (y_err - last_yaw_err) / dt.toSec();
 
     geometry_msgs::Twist ret;
-    ret.angular.z = YAW_VEL_P * y_err + YAW_VEL_I * yaw_err_sum + YAW_VEL_D * dy_err;
+    ret.angular.z = YAW_POS_P * y_err + YAW_POS_I * yaw_err_sum + YAW_POS_D * dy_err;
 
     geometry_msgs::Point d_err;
     d_err.x = (err.x - pix_last_err.x) / dt.toSec();
     d_err.y = (err.y - pix_last_err.y) / dt.toSec();
 
-    ret.linear.x = PIX_VEL_P * err.y + PIX_VEL_I * pix_err_sum.y + PIX_VEL_D * d_err.y;
-    ret.linear.y = PIX_VEL_P * err.x + PIX_VEL_I * pix_err_sum.x + PIX_VEL_D * d_err.x;
+    ret.linear.x = PIX_POS_P * err.y + PIX_POS_I * pix_err_sum.y + PIX_POS_D * d_err.y;
+    ret.linear.y = PIX_POS_P * err.x + PIX_POS_I * pix_err_sum.x + PIX_POS_D * d_err.x;
 
     pix_err_sum.x += err.x * dt.toSec();
     pix_err_sum.y += err.y * dt.toSec();
@@ -793,6 +806,7 @@ int main(int argc, char **argv) {
     //ros::Subscriber local_pose_sub = nh.subscribe<geometry_msgs::PoseStamped>("mavros/local_position/pose", 1, pose_cb);
     ros::Subscriber local_pose_sub = nh.subscribe<geometry_msgs::PoseStamped>("mavros/vision_pose/pose", 1, pose_cb);
     ros::Subscriber move_base_cmd_sub = nh.subscribe<geometry_msgs::Twist>("cmd_vel", 1, move_base_cmd_vel_cb);
+    ros::Subscriber vel_sub = nh.subscribe<geometry_msgs::TwistStamped>("mavros/local_position/velocity_local", 1, vel_cb);
     ros::Publisher vel_pub = nh.advertise<geometry_msgs::TwistStamped>("mavros/setpoint_velocity/cmd_vel", 1);
     ros::Publisher goal_pub = nh.advertise<geometry_msgs::PoseStamped>("move_base_simple/goal", 1);
     ros::Publisher cancel_pub = nh.advertise<actionlib_msgs::GoalID>("move_base/cancel", 1);
