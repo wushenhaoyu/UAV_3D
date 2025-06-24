@@ -18,6 +18,7 @@
 
 #include <tutorial_vision/CircleDetectResult.h>
 #include <tutorial_vision/StringStamped.h>
+#include <cmath>
 
 #define ALTITUDE  1.4
 #define END_X 0.0
@@ -33,6 +34,8 @@ ros::Time last_request;
 
 tf::Quaternion quat; 
 double roll, pitch, yaw;
+double yaw_correct;
+double yaw_target;
 double initial_yaw = 0.0;
 bool flag_init_yaw = false;
 
@@ -47,20 +50,7 @@ nav_msgs::Odometry local_pos;
 geometry_msgs::PoseStamped pose;
 bool point_arrive_flag = false;
 
-geometry_msgs::Point body_position;
-geometry_msgs::PoseStamped body_target_pose; // target in body frame
 
-void enu_to_body(double x_enu, double y_enu, double& x_body, double& y_body) {
-    double dx = x_enu - init_position_x_take_off;
-    double dy = y_enu - init_position_y_take_off;
-    x_body =  cos(-initial_yaw) * dx - sin(-initial_yaw) * dy;
-    y_body =  sin(-initial_yaw) * dx + cos(-initial_yaw) * dy;
-}
-
-void body_to_enu(double x_body, double y_body, double& x_enu, double& y_enu) {
-    x_enu = init_position_x_take_off + cos(initial_yaw) * x_body - sin(initial_yaw) * y_body;
-    y_enu = init_position_y_take_off + sin(initial_yaw) * x_body + cos(initial_yaw) * y_body;
-}
 void vision_pos_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
     if (!flag_vision_ready) {
@@ -71,6 +61,17 @@ void vision_pos_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
 	}
     }
 }
+
+double normalize_angle(double angle_rad) {
+    while (angle_rad > M_PI) {
+        angle_rad -= 2.0 * M_PI;
+    }
+    while (angle_rad < -M_PI) {
+        angle_rad += 2.0 * M_PI;
+    }
+    return angle_rad;
+}
+
 void local_pos_cb(const nav_msgs::Odometry::ConstPtr& msg) {
      if (!flag_vision_ready) return;
     local_pos = *msg;
@@ -88,17 +89,11 @@ void local_pos_cb(const nav_msgs::Odometry::ConstPtr& msg) {
         flag_init_yaw = true;
         ROS_INFO("Initial yaw recorded: %.2f deg", initial_yaw * 180.0 / M_PI);
     }
+    yaw_correct = normalize_angle(yaw - initial_yaw);
 
-    // ENU -> Body 坐标转换
-    double x_body, y_body;
-    enu_to_body(local_pos.pose.pose.position.x, local_pos.pose.pose.position.y, x_body, y_body);
-    body_position.x = x_body;
-    body_position.y = y_body;
-    body_position.z = local_pos.pose.pose.position.z - init_position_z_take_off;
-
-    double x_enu, y_enu;
-    body_to_enu(x_body, y_body, x_enu, y_enu);
-    ROS_INFO("Body position: (%.2f, %.2f, %.2f),ENU position: (%.2f, %.2f, %.2f),True_ENU position:(%.2f, %.2f, %.2f)",x_body,y_body,local_pos.pose.pose.position.z,x_enu,y_enu,local_pos.pose.pose.position.z,local_pos.pose.pose.position.x,local_pos.pose.pose.position.y,local_pos.pose.pose.position.z);
+//	ROS_INFO("yaw:%.3f",(yaw - initial_yaw) * 180 / M_PI);
+    
+   // ROS_INFO("Body position: (%.2f, %.2f, %.2f),ENU position: (%.2f, %.2f, %.2f),True_ENU position:(%.2f, %.2f, %.2f)",x_body,y_body,local_pos.pose.pose.position.z,x_enu,y_enu,local_pos.pose.pose.position.z,local_pos.pose.pose.position.x,local_pos.pose.pose.position.y,local_pos.pose.pose.position.z);
 }
 
 void state_cb(const mavros_msgs::State::ConstPtr& msg) {
@@ -110,28 +105,69 @@ void fly_target_cb(const std_msgs::UInt8::ConstPtr& msg) {
     fly_task = msg->data;
 }
 
+double getAngleBetweenPoints(double* out_err = nullptr) {
+    double diff = normalize_angle(yaw_target - yaw_correct) * 180 / (2 * M_PI);
+    if (out_err) *out_err = diff;
+    return std::abs(diff);
+}
 double getLengthBetweenPoints(double *out_err_x = nullptr, double *out_err_y = nullptr) {
-    double err_x = body_target_pose.pose.position.x - body_position.x;
-    double err_y = body_target_pose.pose.position.y - body_position.y;
+    double err_x = pose.pose.position.x - local_pos.pose.pose.position.x;
+    double err_y = pose.pose.position.y - local_pos.pose.pose.position.y;
     if (out_err_x) *out_err_x = err_x;
     if (out_err_y) *out_err_y = err_y;
     return sqrt(err_x * err_x + err_y * err_y);
 }
 
 double getHeightBetweenPoints(double *out_err_z = nullptr) {
-    double err_z = body_target_pose.pose.position.z - body_position.z;
+    double err_z = pose.pose.position.z - local_pos.pose.pose.position.z;
     if (out_err_z) *out_err_z = err_z;
     return fabs(err_z);
 }
+
+/*
+ * @brief : 转化对应 yaw，0 为起飞前方（+X），1 为后方（-X），2 为左方（+Y），3 为右方（-Y）
+ * @param : direction 方向编号
+ * @return: yaw 弧度 [−π, π]
+ */
+double trans_yaw(int direction)
+{
+    switch (direction) {
+        case 0:  // 前方（+X）
+            return 0.0;
+        case 1:  // 后方（-X）
+            return M_PI;
+        case 2:  // 左方（+Y）
+            return M_PI_2;  // M_PI / 2
+        case 3:  // 右方（-Y）
+            return -M_PI_2;  // -M_PI / 2
+        default:
+            ROS_WARN("Invalid direction: %d. Defaulting to 0 yaw.", direction);
+            return 0.0;
+    }
+}
+
+void change_yaw(int direction){
+    if(getAngleBetweenPoints() < 4 &&  ros::Time::now() - last_request > ros::Duration(1.0))
+    {
+        fly_task_state++;
+        last_request = ros::Time::now();
+        ROS_INFO("\033[32mComplete a yaw change\033[0m");
+    }else{
+        yaw_target = trans_yaw(direction);
+        tf::Quaternion q = tf::createQuaternionFromRPY(0.0, 0.0, yaw_target);
+        tf::quaternionTFToMsg(q, pose.pose.orientation);
+    }
+}
+
 
 void end_fly_task() {
     fsm_state = 100;
 }
 
 void fly_to_point(double x, double y, double z, double stop_time) {
-    body_target_pose.pose.position.x = x;
-    body_target_pose.pose.position.y = y;
-    body_target_pose.pose.position.z = z;
+    pose.pose.position.x = init_position_x_take_off + x;
+    pose.pose.position.y = init_position_y_take_off + y;
+    pose.pose.position.z = init_position_z_take_off + z;
 
     if (getLengthBetweenPoints() < 0.1 && getHeightBetweenPoints() < 0.1 && ros::Time::now() - last_request > ros::Duration(1.0)) {
         if (!point_arrive_flag) {
@@ -154,6 +190,18 @@ void run_fly_task1() {
         case 3: end_fly_task(); break;
         default: break;
     }
+}
+
+void run_fly_task2() {
+    switch (fly_task_state) {
+        case 0: change_yaw(2); break;
+        case 1: change_yaw(1); break;
+        case 2: change_yaw(3); break;
+        case 3: change_yaw(0); break;
+        case 4: end_fly_task();break;
+        default: break;
+    }
+
 }
 
 int main(int argc, char **argv) {
@@ -182,9 +230,9 @@ int main(int argc, char **argv) {
     }
 
     last_request = ros::Time::now();
-    body_target_pose.pose.position.x = 0;
-    body_target_pose.pose.position.y = 0;
-    body_target_pose.pose.position.z = ALTITUDE;
+    pose.pose.position.x = init_position_x_take_off + 0;
+    pose.pose.position.y = init_position_y_take_off + 0;
+    pose.pose.position.z = init_position_z_take_off + ALTITUDE;
 
     while (ros::ok()) {
         if(fsm_state == 0)
@@ -203,7 +251,7 @@ int main(int argc, char **argv) {
 
         switch (fsm_state) {
             case 0:
-                if (current_state.mode != "OFFBOARD") {
+                if (current_state.mode == "OFFBOARD") {
                     fsm_state = 1; last_request = ros::Time::now();
                     ROS_INFO("\033[32mReached Arm State.\033[0m");
                 }
@@ -219,19 +267,28 @@ int main(int argc, char **argv) {
                     fsm_state = 3; last_request = ros::Time::now();
                     ROS_INFO("\033[32mReached Fly State.\033[0m");
                 } else {
-                    body_target_pose.pose.position.x = 0;
-                    body_target_pose.pose.position.y = 0;
-                    body_target_pose.pose.position.z = ALTITUDE;
+                    pose.pose.position.x = init_position_x_take_off + 0;
+                    pose.pose.position.y = init_position_y_take_off + 0;
+                    pose.pose.position.z = init_position_z_take_off + ALTITUDE;
                 }
                 break;
             case 3:
-                run_fly_task1(); break;
+                run_fly_task2(); break;
             case 100:
-                fly_to_point(END_X, END_Y, END_Z, 2.0); break;
+                if(getLengthBetweenPoints() < 0.1 && getHeightBetweenPoints() < 0.1   && ros::Time::now() - last_request > ros::Duration(1.0))
+                {
+                    fsm_state = 101;
+                    last_request = ros::Time::now();
+                }else{
+                    pose.pose.position.x = init_position_x_take_off + END_X;
+                    pose.pose.position.y = init_position_y_take_off + END_Y;
+                    pose.pose.position.z = init_position_z_take_off + END_Z;
+                }
+                break;
             case 101:
-                if (current_state.mode == "AUTO.LAND") {
-                    fsm_state = -1;
-                } else {
+                if(current_state.mode == "AUTO.LAND"){
+                    fsm_state = -1; 
+                }else{
                     mavros_msgs::SetMode land_set_mode;
                     land_set_mode.request.custom_mode = "AUTO.LAND";
                     set_mode_client.call(land_set_mode);
@@ -246,12 +303,6 @@ int main(int argc, char **argv) {
                 break;
         }
 
-        //  发布转换后的 ENU 坐标
-        double x_enu, y_enu;
-        body_to_enu(body_target_pose.pose.position.x, body_target_pose.pose.position.y, x_enu, y_enu);
-        pose.pose.position.x = x_enu;
-        pose.pose.position.y = y_enu;
-        pose.pose.position.z = init_position_z_take_off + body_target_pose.pose.position.z;
 
         local_pos_pub.publish(pose);
         ros::spinOnce(); rate.sleep();
