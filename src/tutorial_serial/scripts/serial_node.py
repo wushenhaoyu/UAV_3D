@@ -10,7 +10,7 @@ import rosbag
 import math
 from tf.transformations import euler_from_quaternion
 from tutorial_vision.msg import StringStamped  # 导入二维码消息类型
-from std_msgs.msg import UInt8
+from std_msgs.msg import UInt8, Int32
 class IMUSerialNode:
     def __init__(self):
         rospy.init_node('serial_node', log_level=rospy.INFO)
@@ -26,11 +26,14 @@ class IMUSerialNode:
         self.z = 0.0
         self.yaw = 0.0
 
+        self.fly_task = 1
+
         self.target = 0
         self.fly_target_pub = rospy.Publisher('fly_target', UInt8, queue_size=10)
 
         # 订阅二维码检测结果
         self.qr_sub = rospy.Subscriber("qr_detect_result", StringStamped, self.qr_callback)
+        self.fly_task_sub = rospy.Subscriber("fly_task", Int32, self.fly_task_callback)
 
         # TF2 相关
         self.tf_broadcaster = StaticTransformBroadcaster()
@@ -67,39 +70,55 @@ class IMUSerialNode:
             target_msg.data = self.target
             self.fly_target_pub.publish(target_msg)
 
+    def fly_task_callback(self, data):
+        self.fly_task = data.data
 
     def qr_callback(self, msg):
         try:
-            packet = bytearray()
-            packet.append(0xAA)  # 帧头
-            packet.append(0x01)  # 功能码（自定义）
+            if(self.fly_task == 1):
+                packet = bytearray()
+                packet.append(0xAA)  # 帧头
+                packet.append(0x01)  # 功能码（自定义）
+                
+                qr_data = ''.join(msg.data).encode('utf-8')
+                data_length = len(qr_data) + 0x01
+                packet.append(data_length) 
+                packet.append(self.judge_location())
+                
+                packet.extend(qr_data) 
+                packet.append(0xAF)  # 帧尾
             
-            qr_data = ''.join(msg.data).encode('utf-8')
-            data_length = len(qr_data) + 0x01
-            packet.append(data_length) 
-            packet.append(self.judge_location())
-            
-            packet.extend(qr_data) 
-            packet.append(0xAF)  
-            
-            self.serial_port.write(packet)
-            rospy.loginfo("发送二维码数据: %s", qr_data)
-            
-        except Exception as e:
-            rospy.logerr("串口发送失败: %s", str(e))
+                rospy.loginfo("Sending packet: %s", ' '.join(format(byte, '02x') for byte in packet))
+            elif(self.fly_task == 2):
+                packet = bytearray()
+                packet.append(0xAA)  # 帧头
+                packet.append(0x02)  # 功能码（自定义）
+                qr_data = ''.join(msg.data).encode('utf-8')
+                data_length = len(qr_data)
+                packet.append(data_length)
+                packet.extend(qr_data)
+                packet.append(0xAF)  # 帧尾
+                rospy.loginfo("Sending packet: %s", ' '.join(format(byte, '02x') for byte in packet))
 
-    def vision_pose_callback(self, msg):
+
+        except Exception as e:
+            rospy.logerr("send qr failed: %s", str(e))
+
+    def true_pos_callback(self, msg):
+        # 提取位置
         position = msg.pose.position
         self.x = position.x
         self.y = position.y
         self.z = position.z
+
+        # 提取偏航角
         orientation = msg.pose.orientation
         quaternion = [
-        orientation.x,
-        orientation.y,
-        orientation.z,
-        orientation.w
-    ]
+            orientation.x,
+            orientation.y,
+            orientation.z,
+            orientation.w
+        ]
         roll, pitch, yaw = euler_from_quaternion(quaternion)
         self.yaw = yaw
     def judge_location(self):
