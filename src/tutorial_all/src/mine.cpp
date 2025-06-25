@@ -21,9 +21,13 @@
 #include <cmath>
 
 #define ALTITUDE  1.4
-#define END_X 3.5
+/*#define END_X 3.5
 #define END_Y 2.5
-#define END_Z 0.5
+#define END_Z 0.5*/
+
+#define END_X 0
+#define END_Y 0
+#define END_Z 1.4
 
 int fsm_state = 0;
 int fly_task_state = 0;
@@ -120,12 +124,21 @@ void fly_target_cb(const std_msgs::UInt8::ConstPtr& msg) {
     ROS_INFO("\033[34mRecieve fly_target: %d\033[0m", msg->data);
     fly_target = msg->data;
 }
-
+ 
 double getAngleBetweenPoints(double* out_err = nullptr) {
-    double diff = normalize_angle(yaw_target - yaw_correct) * 180 / (2 * M_PI);
-    if (out_err) *out_err = diff;
-    return std::abs(diff);
+    double diff = yaw_target - yaw_correct;
+
+    // 将 diff 归一化到 [-π, π]
+    while (diff > M_PI) diff -= 2 * M_PI;
+    while (diff < -M_PI) diff += 2 * M_PI;
+
+    double degree_diff = std::abs(diff) * 180.0 / M_PI;
+
+    if (out_err) *out_err = degree_diff;
+    return degree_diff;
 }
+
+
 double getLengthBetweenPoints(double *out_err_x = nullptr, double *out_err_y = nullptr) {
     double err_x = pose.pose.position.x - local_pos.pose.pose.position.x;
     double err_y = pose.pose.position.y - local_pos.pose.pose.position.y;
@@ -163,16 +176,19 @@ double trans_yaw(int direction)
 }
 
 void change_yaw(int direction){
-    if(getAngleBetweenPoints() < 4 &&  ros::Time::now() - last_request > ros::Duration(4.0))
+    if(getAngleBetweenPoints() < 4 &&  ros::Time::now() - last_request > ros::Duration(4.0) && getLengthBetweenPoints() < 0.1)
     {
         fly_task_state++;
         last_request = ros::Time::now();
         ROS_INFO("\033[32mComplete a yaw change\033[0m");
     }else{
         yaw_target = trans_yaw(direction);
-        tf::Quaternion q = tf::createQuaternionFromRPY(0.0, 0.0, yaw_target);
+	double yaw_target_t = initial_yaw + yaw_target;
+        tf::Quaternion q = tf::createQuaternionFromRPY(0.0, 0.0, yaw_target_t);
         tf::quaternionTFToMsg(q, pose.pose.orientation);
+	ROS_INFO("yaw_eror:%f,yaw_target:%f,yaw_correct:%f\n",getAngleBetweenPoints(),yaw_target,yaw_correct);
     }
+
 }
 
 
@@ -211,10 +227,13 @@ void run_fly_task1() {
 void run_fly_task2() {
     switch (fly_task_state) {
         case 0: change_yaw(2); break;
-        case 1: change_yaw(1); break;
-        case 2: change_yaw(3); break;
-        case 3: change_yaw(0); break;
-        case 4: end_fly_task();break;
+        case 1: fly_to_point(0,0.5,ALTITUDE , 2); break;
+        case 2: change_yaw(1); break;
+        case 3: fly_to_point(0.5,0.5,ALTITUDE , 2); break;
+        case 4: change_yaw(3); break;
+        case 5: fly_to_point(0.5,0 ,ALTITUDE , 2); break;
+        case 6: change_yaw(0); break;
+        case 7: end_fly_task();break;
         default: break;
     }
 }
@@ -595,9 +614,9 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 3:
-                run_fly_task2(); break;
+                 run_fly_task2();break;
             case 100:
-                if(getLengthBetweenPoints() < 0.1 && getHeightBetweenPoints() < 0.1   && ros::Time::now() - last_request > ros::Duration(1.0))
+                if(getLengthBetweenPoints() < 0.1 && getHeightBetweenPoints() < 0.1   && ros::Time::now() - last_request > ros::Duration(8.0))
                 {
                     fsm_state = 101;
                     last_request = ros::Time::now();

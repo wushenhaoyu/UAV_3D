@@ -2,7 +2,8 @@
 <launch>
     <node pkg="tutorial_all" type="mine" name="task_node" output="screen">
     </node>
-    <node pkg="tutorial_serial" type="serial_node" name="serial_node" output="screen">
+    <node pkg="tutorial_serial" type="serial_node.py" name="serial_node" output="screen">
+    </node>
     <include file="$(find tutorial_vision)/launch/simple_camera_driver.launch" />
     <include file="$(find tutorial_vision)/launch/qr_detector.launch" />
     <include file="$(find tutorial_basic)/launch/mavros.launch" />
