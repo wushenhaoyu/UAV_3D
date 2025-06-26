@@ -31,12 +31,16 @@ class IMUSerialNode:
 
         self.fly_task = 1
 
+        self.yaw_symbol = 0
+
         self.target = 0
         self.fly_target_pub = rospy.Publisher('fly_target', UInt8, queue_size=10)
 
         # 订阅二维码检测结果
         self.qr_sub = rospy.Subscriber("qr_detect_result", StringStamped, self.qr_callback)
         self.fly_task_sub = rospy.Subscriber("fly_task", Int32, self.fly_task_callback)
+        self.yaw_symbol_sub = rospy.Subscriber("yaw_symbol", Int32, self.yaw_symbol_callback)
+        self.true_pos_sub = rospy.Subscriber("true_position", PoseStamped, self.true_pos_callback)
 
         # TF2 相关
         self.tf_broadcaster = StaticTransformBroadcaster()
@@ -80,6 +84,9 @@ class IMUSerialNode:
     def fly_task_callback(self, data):
         self.fly_task = data.data
 
+    def yaw_symbol_callback(self, data):
+        self.yaw_symbol = data.data
+
     def qr_callback(self, msg):
         try:
             if(msg.data):
@@ -102,10 +109,12 @@ class IMUSerialNode:
                     
                     packet.extend(qr_data) 
                     packet.append(0xAF)  # 帧尾
-                
+                    
+                    
                     rospy.loginfo("Sending packet: %s x:%.2f, y:%.2f, z:%.2f, yaw:%.2f",
               ' '.join(format(byte, '02x') for byte in packet),
               self.x, self.y, self.z, self.yaw)
+                    self.serial_port.write(packet) 
                 elif self.fly_task == 2:
                     packet = bytearray()
                     packet.append(0xAA)  # 帧头
@@ -122,6 +131,7 @@ class IMUSerialNode:
                     packet.extend(qr_data)
                     packet.append(0xAF)  # 帧尾
                     rospy.loginfo("Sending packet: %s", ' '.join(format(byte, '02x') for byte in packet))
+                    self.serial_port.write(packet) 
 
         except Exception as e:
             rospy.logerr("send qr failed: %s", str(e))
@@ -143,6 +153,21 @@ class IMUSerialNode:
         ]
         roll, pitch, yaw = euler_from_quaternion(quaternion)
         self.yaw = yaw
+
+        try:
+            packet = bytearray()
+            packet.append(0xAA)  # 帧头
+            packet.append(0x03)  # 功能码（自定义）
+            packet.append(0x08)
+            packet.extend(struct.pack('>ff', self.x, self.y))  # 修改这里
+            packet.append(0xAF)
+            #rospy.loginfo("x:%.2f, y:%.2f, z:%.2f, yaw:%.2f",self.x, self.y, self.z, self.yaw)
+            rospy.loginfo("Sending Location packet: %s", ' '.join(format(byte, '02x') for byte in packet))
+            self.serial_port.write(packet) 
+        except Exception as e:
+            pass
+            #rospy.logerr("send location failed: %s", str(e))
+
     def judge_location(self):
         if(self.x > -0.5 and self.x < 1.0): #在1～6
             if(self.z > 1.2 and self.z <1.6):
@@ -160,7 +185,7 @@ class IMUSerialNode:
                 elif(self.y >1.5 and self.y < 2.0):
                     return 0x04   
         elif(self.x >1.0 and self.x < 2.5): #在7～18
-            if(abs(self.yaw) > math.PI / 30 ):#在13～18
+            if(self.yaw_symbol == 0 ):#在13～18
                 if(self.z > 1.2 and self.z <1.6):
                     if(self.y >0.5 and self.y < 1.0):
                         return 0x15
@@ -175,7 +200,7 @@ class IMUSerialNode:
                         return 0x17
                     elif(self.y >1.5 and self.y < 2.0):
                         return 0x16  
-            elif(abs(self.yaw - math.pi) < math.pi / 30):#在7～12
+            elif(self.yaw_symbol == 1):#在7～12
                 if(self.z > 1.2 and self.z <1.6):
                     if(self.y >0.5 and self.y < 1.0):
                         return 0x09

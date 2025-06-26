@@ -21,18 +21,18 @@
 #include <cmath>
 
 #define ALTITUDE  1.4
-/*#define END_X 3.5
+#define END_X 3.5
 #define END_Y 2.5
-#define END_Z 0.5*/
+#define END_Z 0.5
 
-#define END_X 0
+/*#define END_X 0
 #define END_Y 0
-#define END_Z 1.4
+#define END_Z 1.4*/
 
 int fsm_state = 0;
 int fly_task_state = 0;
 int fly_task = 1;
-int8_t fly_target = 0x00;
+int8_t fly_target = 0x17;
 
 mavros_msgs::State current_state;
 ros::Time last_request;
@@ -42,6 +42,7 @@ double roll, pitch, yaw;
 double yaw_correct;
 double yaw_target;
 double initial_yaw = 0.0;
+int yaw_symbol = 0;
 bool flag_init_yaw = false;
 
 float init_position_x_take_off = 0;
@@ -56,6 +57,7 @@ geometry_msgs::PoseStamped pose;
 bool point_arrive_flag = false;
 
 ros::Publisher true_pos_pub;
+ros::Publisher yaw_symbol_pub;
 
 
 void vision_pos_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
@@ -160,6 +162,9 @@ double getHeightBetweenPoints(double *out_err_z = nullptr) {
  */
 double trans_yaw(int direction)
 {
+    std_msgs::Int32 sybmol;
+    sybmol.data = direction;
+    yaw_symbol_pub.publish(sybmol);
     switch (direction) {
         case 0:  // 前方（+X）
             return 0.0;
@@ -186,7 +191,7 @@ void change_yaw(int direction){
 	double yaw_target_t = initial_yaw + yaw_target;
         tf::Quaternion q = tf::createQuaternionFromRPY(0.0, 0.0, yaw_target_t);
         tf::quaternionTFToMsg(q, pose.pose.orientation);
-	ROS_INFO("yaw_eror:%f,yaw_target:%f,yaw_correct:%f\n",getAngleBetweenPoints(),yaw_target,yaw_correct);
+//	ROS_INFO("yaw_eror:%f,yaw_target:%f,yaw_correct:%f\n",getAngleBetweenPoints(),yaw_target,yaw_correct);
     }
 
 }
@@ -340,10 +345,10 @@ void run_fly_task_2024_2()
                 }
             break;
             case 2:
-                fly_to_point(0.0, -0.1, 1.0, 1);
+                fly_to_point(0.0, -0.1, 1.4, 1);
             break;
             case 3:
-                fly_to_point(3.5, -0.1, 1.0, 1);
+                fly_to_point(3.5, -0.1, 1.4, 1);
             break;
             case 4:
                 end_fly_task();
@@ -374,10 +379,10 @@ void run_fly_task_2024_2()
                     }
                 break;
                 case 3:
-                    fly_to_point(1.75, -0.1, 1.0, 1);
+                    fly_to_point(1.75, -0.1, 1.4, 1);
                 break;
                 case 4:
-                    fly_to_point(1.75, 3.5, 1.0, 1);
+                    fly_to_point(3.5,-0.1, 1.4, 1);
                 break;
                 case 5:
                     end_fly_task();
@@ -406,7 +411,7 @@ void run_fly_task_2024_2()
                     fly_to_point(1.75, -0.1, 1.4, 1);
                 break;
                 case 4:
-                    fly_to_point(1.75, 3.5, 1.4, 1);
+                    fly_to_point(3.5, -0.1 , 1.4, 1);
                 break;
                 case 5:
                     end_fly_task();
@@ -432,10 +437,10 @@ void run_fly_task_2024_2()
                     }
                 break;
                 case 2:
-                    fly_to_point(1.75, -0.1, 1.0, 1);
+                    fly_to_point(1.75, -0.1, 1.4, 1);
                 break;
                 case 3:
-                    fly_to_point(1.75, 3.5, 1.0, 1);
+                    fly_to_point(3.5,-0.1, 1.4, 1);
                 break;
                 case 4:
                     end_fly_task();
@@ -461,7 +466,7 @@ void run_fly_task_2024_2()
                     fly_to_point(1.75, -0.1, 1.4, 1);
                 break;
                 case 3:
-                    fly_to_point(1.75, 3.5, 1.4, 1);
+                    fly_to_point(3.5,-0.1, 1.4, 1);
                 break;
                 case 4:
                     end_fly_task();
@@ -492,12 +497,9 @@ void run_fly_task_2024_2()
                     }
                 break;
                 case 3:
-                    fly_to_point(3.5, -0.1, 1.0, 1);
+                    fly_to_point(3.5, 2.5, 1.0, 1);
                 break;
                 case 4:
-                    fly_to_point(3.5, -0.1, 1.0, 1);
-                break;
-                case 5:
                     end_fly_task();
                 break;  
                 }
@@ -521,12 +523,9 @@ void run_fly_task_2024_2()
                     }
                 break;
                 case 3:
-                    fly_to_point(3.5, -0.1, 1.4, 1);
+                    fly_to_point(3.5, 2.5, 1.4, 1);
                 break;
                 case 4:
-                    fly_to_point(3.5, -0.1, 1.4, 1);
-                break;
-                case 5:
                     end_fly_task();
                 break;  
                 }
@@ -536,9 +535,12 @@ void run_fly_task_2024_2()
         switch (fly_task_state)
         {
         case 0:
-            fly_to_point(3.5, -0.1, 1.4, 1);
+            fly_to_point(0.0, -0.1, 1.4, 1);
         break;
-        case 1:
+	case 1:
+		fly_to_point(3.5,-0.1,1.4,1);
+		break;
+        case 2:
            end_fly_task();
         break;
         }
@@ -551,6 +553,7 @@ int main(int argc, char **argv) {
 
     ros::Publisher local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 10);
     ros::Publisher fly_task_pub = nh.advertise<std_msgs::Int32>("fly_task", 1);
+    yaw_symbol_pub = nh.advertise<std_msgs::Int32>("yaw_symbol", 1);
     true_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("true_position", 10);
 
     ros::Subscriber state_sub = nh.subscribe("mavros/state", 10, state_cb);
@@ -607,6 +610,12 @@ int main(int argc, char **argv) {
                 if (getHeightBetweenPoints() < 0.1 && ros::Time::now() - last_request > ros::Duration(1.0)) {
                     fsm_state = 3; last_request = ros::Time::now();
                     ROS_INFO("\033[32mReached Fly State.\033[0m");
+		    if(fly_task == 1){
+
+			ROS_INFO("\033[32mFly Task 1 starting!\033[0m");
+		    }else if(fly_task == 2){
+			ROS_INFO("\033[32mFly Task 2 starting!\033[0m");
+		    }
                 } else {
                     pose.pose.position.x = init_position_x_take_off + 0;
                     pose.pose.position.y = init_position_y_take_off + 0;
@@ -614,7 +623,12 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 3:
-                 run_fly_task2();break;
+                if(fly_task == 1){
+                    run_fly_task_2024_1();
+                }else if(fly_task == 2){
+                    run_fly_task_2024_2();
+                }
+                break;
             case 100:
                 if(getLengthBetweenPoints() < 0.1 && getHeightBetweenPoints() < 0.1   && ros::Time::now() - last_request > ros::Duration(8.0))
                 {
@@ -623,10 +637,21 @@ int main(int argc, char **argv) {
                 }else{
                     pose.pose.position.x = init_position_x_take_off + END_X;
                     pose.pose.position.y = init_position_y_take_off + END_Y;
+                    pose.pose.position.z = init_position_z_take_off + ALTITUDE;
+                }
+                break;
+	    case 101:
+                if(getLengthBetweenPoints() < 0.1 && getHeightBetweenPoints() < 0.1   && ros::Time::now() - last_request > ros::Duration(8.0))
+                {
+                    fsm_state = 102;
+                    last_request = ros::Time::now();
+                }else{
+                    pose.pose.position.x = init_position_x_take_off + END_X;
+                    pose.pose.position.y = init_position_y_take_off + END_Y;
                     pose.pose.position.z = init_position_z_take_off + END_Z;
                 }
                 break;
-            case 101:
+            case 102:
                 if(current_state.mode == "AUTO.LAND"){
                     fsm_state = -1; 
                 }else{
