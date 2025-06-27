@@ -95,13 +95,14 @@ class IMUSerialNode:
                     packet.append(0xAA)  # 帧头
                     packet.append(0x01)  # 功能码（自定义）
                     
-                    # 将 msg.data 中的字符串转换为对应的十六进制值
+                    # 将 msg.data 中的字符串转换为对应的十进制数，再转换为十六进制数
                     qr_data = bytearray()
-                    for item in msg.data:
+                    for char in msg.data:
                         try:
-                            qr_data.append(int(item, 16))  # 将字符串转换为十六进制值
+                            decimal_value = int(char)  # 将字符转换为对应的十进制数
+                            qr_data.append(decimal_value)  # 将十进制数添加到 qr_data
                         except ValueError:
-                            rospy.logwarn(f"Invalid hex value: {item}, skipping this value.")
+                            rospy.logwarn(f"Invalid decimal value: {char}, skipping this value.")
                     
                     data_length = len(qr_data) + 0x01
                     packet.append(data_length) 
@@ -110,21 +111,21 @@ class IMUSerialNode:
                     packet.extend(qr_data) 
                     packet.append(0xAF)  # 帧尾
                     
-                    
                     rospy.loginfo("Sending packet: %s x:%.2f, y:%.2f, z:%.2f, yaw:%.2f",
-              ' '.join(format(byte, '02x') for byte in packet),
-              self.x, self.y, self.z, self.yaw)
+                                ' '.join(format(byte, '02x') for byte in packet),
+                                self.x, self.y, self.z, self.yaw)
                     self.serial_port.write(packet) 
                 elif self.fly_task == 2:
                     packet = bytearray()
                     packet.append(0xAA)  # 帧头
                     packet.append(0x02)  # 功能码（自定义）
                     qr_data = bytearray()
-                    for item in msg.data:
+                    for char in msg.data:
                         try:
-                            qr_data.append(int(item, 16))  # 将字符串转换为十六进制值
+                            decimal_value = int(char)  # 将字符转换为对应的十进制数
+                            qr_data.append(decimal_value)  # 将十进制数添加到 qr_data
                         except ValueError:
-                            rospy.logwarn(f"Invalid hex value: {item}, skipping this value.")
+                            rospy.logwarn(f"Invalid decimal value: {char}, skipping this value.")
                     
                     data_length = len(qr_data)
                     packet.append(data_length)
@@ -154,7 +155,7 @@ class IMUSerialNode:
         roll, pitch, yaw = euler_from_quaternion(quaternion)
         self.yaw = yaw
 
-        try:
+        """try:
             packet = bytearray()
             packet.append(0xAA)  # 帧头
             packet.append(0x03)  # 功能码（自定义）
@@ -166,7 +167,7 @@ class IMUSerialNode:
             self.serial_port.write(packet) 
         except Exception as e:
             pass
-            #rospy.logerr("send location failed: %s", str(e))
+            #rospy.logerr("send location failed: %s", str(e))"""
 
     def judge_location(self):
         if(self.x > -0.5 and self.x < 1.0): #在1～6
@@ -188,50 +189,49 @@ class IMUSerialNode:
             if(self.yaw_symbol == 0 ):#在13～18
                 if(self.z > 1.2 and self.z <1.6):
                     if(self.y >0.5 and self.y < 1.0):
-                        return 0x15
+                        return 0x0D
                     elif(self.y >1.0 and self.y < 1.5):
-                        return 0x14
+                        return 0x0C
                     elif(self.y >1.5 and self.y < 2.0):
-                        return 0x13
-                elif(self.z > 0.8 and self.z <1.2):
-                    if(self.y >0.5 and self.y < 1.0):
-                        return 0x18
-                    elif(self.y >1.0 and self.y < 1.5):
-                        return 0x17
-                    elif(self.y >1.5 and self.y < 2.0):
-                        return 0x16  
-            elif(self.yaw_symbol == 1):#在7～12
-                if(self.z > 1.2 and self.z <1.6):
-                    if(self.y >0.5 and self.y < 1.0):
-                        return 0x09
-                    elif(self.y >1.0 and self.y < 1.5):
-                        return 0x08
-                    elif(self.y >1.5 and self.y < 2.0):
-                        return 0x07
+                        return 0x0B
                 elif(self.z > 0.8 and self.z <1.2):
                     if(self.y >0.5 and self.y < 1.0):
                         return 0x12
                     elif(self.y >1.0 and self.y < 1.5):
                         return 0x11
                     elif(self.y >1.5 and self.y < 2.0):
-                        return 0x10 
+                        return 0x10  
+            elif(self.yaw_symbol == 1):#在7～12
+                if(self.z > 1.2 and self.z <1.6):
+                    if(self.y >0.5 and self.y < 1.0):
+                        return 0x07
+                    elif(self.y >1.0 and self.y < 1.5):
+                        return 0x08
+                    elif(self.y >1.5 and self.y < 2.0):
+                        return 0x09
+                elif(self.z > 0.8 and self.z <1.2):
+                    if(self.y >0.5 and self.y < 1.0):
+                        return 0x0A
+                    elif(self.y >1.0 and self.y < 1.5):
+                        return 0x0B
+                    elif(self.y >1.5 and self.y < 2.0):
+                        return 0x0C 
         elif(self.x >2.5 and self.x < 4.0): #在19～24
             if(self.z > 1.2 and self.z <1.6):
                 if(self.y >0.5 and self.y < 1.0):
-                    return 0x21
+                    return 0x13
                 elif(self.y >1.0 and self.y < 1.5):
-                    return 0x20
+                    return 0x14
                 elif(self.y >1.5 and self.y < 2.0):
-                    return 0x19
+                    return 0x15
             elif(self.z > 0.8 and self.z <1.2):
                 if(self.y >0.5 and self.y < 1.0):
-                    return 0x24
+                    return 0x16
                 elif(self.y >1.0 and self.y < 1.5):
-                    return 0x23
+                    return 0x17
                 elif(self.y >1.5 and self.y < 2.0):
-                    return 0x21 
+                    return 0x18 
         return 0x00
-
 
 
 if __name__ == '__main__':
