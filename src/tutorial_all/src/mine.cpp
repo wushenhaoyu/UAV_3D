@@ -706,13 +706,9 @@ int main(int argc, char **argv) {
 
         if(fly_ctrl_state == 0){
             local_pos_pub.publish(pose);
-        }else if (fly_ctrl_state == 1) {
-        // 仅控制航向角和高度
-        publish_yaw_and_height(yaw_target, pose.pose.position.z);
-        }else if(fly_ctrl_state == 2){
-            publish_yaw_and_x(yaw_target, pose.pose.position.x);
         }
-        ros::spinOnce(); rate.sleep();
+        ros::spinOnce(); 
+        rate.sleep();
     }
     return 0;
 }
