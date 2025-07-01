@@ -15,7 +15,7 @@
 #include <std_msgs/Bool.h>
 #include <actionlib_msgs/GoalID.h>
 #include <nav_msgs/Odometry.h>
-
+#include <mavros_msgs/PositionTarget.h>
 #include <tutorial_vision/CircleDetectResult.h>
 #include <tutorial_vision/StringStamped.h>
 #include <cmath>
@@ -31,8 +31,10 @@
 
 int fsm_state = 0;
 int fly_task_state = 0;
+int fly_ctrl_state = 0;
 int fly_task = 1;
-int8_t fly_target = 0x17;
+int8_t fly_target = 0x00;
+
 
 mavros_msgs::State current_state;
 ros::Time last_request;
@@ -58,7 +60,7 @@ bool point_arrive_flag = false;
 
 ros::Publisher true_pos_pub;
 ros::Publisher yaw_symbol_pub;
-
+ros::Publisher local_pos_pub;
 
 void vision_pos_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
@@ -155,6 +157,38 @@ double getHeightBetweenPoints(double *out_err_z = nullptr) {
     return fabs(err_z);
 }
 
+
+void publish_yaw_and_height(double target_yaw, double target_height) {
+    mavros_msgs::PositionTarget pos_msg;
+    pos_msg.header.stamp = ros::Time::now();
+    pos_msg.header.frame_id = "map";
+    pos_msg.coordinate_frame = mavros_msgs::PositionTarget::FRAME_LOCAL_NED;
+    pos_msg.type_mask = mavros_msgs::PositionTarget::IGNORE_PX | 
+                        mavros_msgs::PositionTarget::IGNORE_PY | 
+                        mavros_msgs::PositionTarget::IGNORE_VX | 
+                        mavros_msgs::PositionTarget::IGNORE_VY | 
+                        mavros_msgs::PositionTarget::IGNORE_VZ | 
+                        mavros_msgs::PositionTarget::IGNORE_YAW_RATE;
+    pos_msg.yaw = target_yaw;
+    pos_msg.position.z = target_height;
+    local_pos_pub.publish(pos_msg);
+}
+
+void publish_yaw_and_x(double target_yaw, double target_x) {
+    mavros_msgs::PositionTarget pos_msg;
+    pos_msg.header.stamp = ros::Time::now();
+    pos_msg.header.frame_id = "map";
+    pos_msg.coordinate_frame = mavros_msgs::PositionTarget::FRAME_LOCAL_NED;
+    pos_msg.type_mask = mavros_msgs::PositionTarget::IGNORE_PY | 
+                        mavros_msgs::PositionTarget::IGNORE_PZ | 
+                        mavros_msgs::PositionTarget::IGNORE_VX | 
+                        mavros_msgs::PositionTarget::IGNORE_VY | 
+                        mavros_msgs::PositionTarget::IGNORE_VZ | 
+                        mavros_msgs::PositionTarget::IGNORE_YAW_RATE;
+    pos_msg.yaw = target_yaw;
+    pos_msg.position.x = target_x;
+    local_pos_pub.publish(pos_msg);
+}
 /*
  * @brief : 转化对应 yaw，0 为起飞前方（+X），1 为后方（-X），2 为左方（+Y），3 为右方（-Y）
  * @param : direction 方向编号
@@ -552,8 +586,8 @@ int main(int argc, char **argv) {
     ros::NodeHandle nh;
     ros::Rate rate(20.0);
 
-    ros::Publisher local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 10);
     ros::Publisher fly_task_pub = nh.advertise<std_msgs::Int32>("fly_task", 1);
+    local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 10);
     yaw_symbol_pub = nh.advertise<std_msgs::Int32>("yaw_symbol", 1);
     true_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("true_position", 10);
 
@@ -670,8 +704,14 @@ int main(int argc, char **argv) {
                 break;
         }
 
-
-        local_pos_pub.publish(pose);
+        if(fly_ctrl_state == 0){
+            local_pos_pub.publish(pose);
+        }else if (fly_ctrl_state == 1) {
+        // 仅控制航向角和高度
+        publish_yaw_and_height(yaw_target, pose.pose.position.z);
+        }else if(fly_ctrl_state == 2){
+            publish_yaw_and_x(yaw_target, pose.pose.position.x);
+        }
         ros::spinOnce(); rate.sleep();
     }
     return 0;

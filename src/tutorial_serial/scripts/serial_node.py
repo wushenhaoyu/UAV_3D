@@ -14,10 +14,11 @@ from std_msgs.msg import UInt8, Int32
 class IMUSerialNode:
     def __init__(self):
         rospy.init_node('serial_node', log_level=rospy.INFO)
-        try:
-            self.serial_port = serial.Serial('/dev/imu', 115200, timeout=1)
+        self.serial_port = serial.Serial('/dev/ttyserial', 9600, timeout=1)
+        """try:
+            self.serial_port = serial.Serial('/dev/ttyserial', 9600, timeout=1)
         except Exception as e:
-            rospy.logerr("Failed to open serial port")
+            rospy.logerr("Failed to open serial port")"""
         self.buffer = bytearray()
         self.receiving = False
         self.length = 0
@@ -35,6 +36,8 @@ class IMUSerialNode:
 
         self.target = 0
         self.fly_target_pub = rospy.Publisher('fly_target', UInt8, queue_size=10)
+
+        self.count = 0
 
         # 订阅二维码检测结果
         self.qr_sub = rospy.Subscriber("qr_detect_result", StringStamped, self.qr_callback)
@@ -138,6 +141,9 @@ class IMUSerialNode:
             rospy.logerr("send qr failed: %s", str(e))
 
     def true_pos_callback(self, msg):
+        self.count = self.count + 1
+        if(self.count != 10):
+            return
         # 提取位置
         position = msg.pose.position
         self.x = position.x
@@ -155,19 +161,26 @@ class IMUSerialNode:
         roll, pitch, yaw = euler_from_quaternion(quaternion)
         self.yaw = yaw
 
-        """try:
-            packet = bytearray()
-            packet.append(0xAA)  # 帧头
-            packet.append(0x03)  # 功能码（自定义）
-            packet.append(0x08)
-            packet.extend(struct.pack('>ff', self.x, self.y))  # 修改这里
-            packet.append(0xAF)
-            #rospy.loginfo("x:%.2f, y:%.2f, z:%.2f, yaw:%.2f",self.x, self.y, self.z, self.yaw)
-            rospy.loginfo("Sending Location packet: %s", ' '.join(format(byte, '02x') for byte in packet))
-            self.serial_port.write(packet) 
-        except Exception as e:
-            pass
-            #rospy.logerr("send location failed: %s", str(e))"""
+        
+        packet = bytearray()
+        packet.append(0xAA)  # 帧头
+        packet.append(0x03)  # 功能码（自定义）
+        packet.append(0x08)
+
+# 将 self.x 和 self.y 各自乘以 100 并转为整数
+        x_int = int(self.x * 100)
+        y_int = int(self.y * 100)
+       # rospy.loginfo("x_int: %d, y_int: %d", x_int, y_int)
+# 使用 struct 将整数打包为字节数据
+        packet.extend(struct.pack('>ii', x_int, y_int))  # 修改这里
+        packet.append(0xAF)
+
+        
+
+        #rospy.loginfo("Sending Location packet: %s", ' '.join(format(byte, '02x') for byte in packet))
+        self.serial_port.write(packet) 
+        self.count = 0
+            #rospy.logerr("send location failed: %s", str(e))
 
     def judge_location(self):
         if(self.x > -0.5 and self.x < 1.0): #在1～6
@@ -231,7 +244,7 @@ class IMUSerialNode:
                     return 0x17
                 elif(self.y >1.5 and self.y < 2.0):
                     return 0x18 
-        return 0x00
+        return 0x17
 
 
 if __name__ == '__main__':
