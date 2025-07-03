@@ -11,10 +11,11 @@ import math
 from tf.transformations import euler_from_quaternion
 from tutorial_vision.msg import StringStamped  # 导入二维码消息类型
 from std_msgs.msg import UInt8, Int32
+from std_msgs.msg import Bool
 class IMUSerialNode:
     def __init__(self):
         rospy.init_node('serial_node', log_level=rospy.INFO)
-        #self.serial_port = serial.Serial('/dev/ttyserial', 9600, timeout=1)
+        self.serial_port = serial.Serial('/dev/ttyserial', 9600, timeout=1)
         try:
             self.serial_port = serial.Serial('/dev/ttyserial', 9600, timeout=1)
         except Exception as e:
@@ -44,10 +45,16 @@ class IMUSerialNode:
         self.fly_task_sub = rospy.Subscriber("fly_task", Int32, self.fly_task_callback)
         self.yaw_symbol_sub = rospy.Subscriber("yaw_symbol", Int32, self.yaw_symbol_callback)
         self.true_pos_sub = rospy.Subscriber("true_position", PoseStamped, self.true_pos_callback)
+        self.camera_en_sub   = rospy.Subscriber("camera_en", Bool, self.camera_en_callback)
+        self.camera_en  = False
 
         # TF2 相关
         self.tf_broadcaster = StaticTransformBroadcaster()
         rospy.Timer(rospy.Duration(0.001), self.read_serial)
+
+    def camera_en_callback(self,data):
+        self.camera_en = data.data
+        #rospy.loginfo("camera_en: %s", self.camera_en)
 
     def read_serial(self, event):
         try:
@@ -94,30 +101,31 @@ class IMUSerialNode:
         try:
             if(msg.data):
                 if self.fly_task == 1:
-                    packet = bytearray()
-                    packet.append(0xAA)  # 帧头
-                    packet.append(0x01)  # 功能码（自定义）
-                    
-                    # 将 msg.data 中的字符串转换为对应的十进制数，再转换为十六进制数
-                    qr_data = bytearray()
-                    for char in msg.data:
-                        try:
-                            decimal_value = int(char)  # 将字符转换为对应的十进制数
-                            qr_data.append(decimal_value)  # 将十进制数添加到 qr_data
-                        except ValueError:
-                            rospy.logwarn(f"Invalid decimal value: {char}, skipping this value.")
-                    
-                    data_length = len(qr_data) + 0x01
-                    packet.append(data_length) 
-                    packet.append(self.judge_location())
-                    
-                    packet.extend(qr_data) 
-                    packet.append(0xAF)  # 帧尾
-                    
-                    rospy.loginfo("Sending packet: %s x:%.2f, y:%.2f, z:%.2f, yaw:%.2f",
-                                ' '.join(format(byte, '02x') for byte in packet),
-                                self.x, self.y, self.z, self.yaw)
-                    self.serial_port.write(packet) 
+                    if self.camera_en == True:
+                        packet = bytearray()
+                        packet.append(0xAA)  # 帧头
+                        packet.append(0x01)  # 功能码（自定义）
+                        
+                        # 将 msg.data 中的字符串转换为对应的十进制数，再转换为十六进制数
+                        qr_data = bytearray()
+                        for char in msg.data:
+                            try:
+                                decimal_value = int(char)  # 将字符转换为对应的十进制数
+                                qr_data.append(decimal_value)  # 将十进制数添加到 qr_data
+                            except ValueError:
+                                rospy.logwarn(f"Invalid decimal value: {char}, skipping this value.")
+                        
+                        data_length = len(qr_data) + 0x01
+                        packet.append(data_length) 
+                        packet.append(self.judge_location())
+                        
+                        packet.extend(qr_data) 
+                        packet.append(0xAF)  # 帧尾
+                        
+                        rospy.loginfo("Sending packet: %s x:%.2f, y:%.2f, z:%.2f, yaw:%.2f",
+                                    ' '.join(format(byte, '02x') for byte in packet),
+                                    self.x, self.y, self.z, self.yaw)
+                        self.serial_port.write(packet) 
                 elif self.fly_task == 2:
                     packet = bytearray()
                     packet.append(0xAA)  # 帧头
@@ -244,7 +252,7 @@ class IMUSerialNode:
                     return 0x17
                 elif(self.y >1.5 and self.y < 2.0):
                     return 0x18 
-        return 0x17
+        return 0x00
 
 
 if __name__ == '__main__':

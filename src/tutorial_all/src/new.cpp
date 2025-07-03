@@ -192,8 +192,6 @@ void change_yaw(int direction){
     }else{
         yaw_target = trans_yaw(direction);
 	    double yaw_target_t = initial_yaw + yaw_target;
-        tf::Quaternion q = tf::createQuaternionFromRPY(0.0, 0.0, yaw_target_t);
-        tf::quaternionTFToMsg(q, pose.pose.orientation);
         setpoint_raw.yaw = yaw_target_t;
 //	ROS_INFO("yaw_eror:%f,yaw_target:%f,yaw_correct:%f\n",getAngleBetweenPoints(),yaw_target,yaw_correct);
     }

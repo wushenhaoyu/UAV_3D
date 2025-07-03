@@ -71,5 +71,6 @@
         "concepts": "cpp",
         "ranges": "cpp",
         "stop_token": "cpp"
-    }
+    },
+    "cmake.sourceDirectory": "/home/flmg/UAV_3D/src/FAST_LIO"
 }
