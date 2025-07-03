@@ -14,11 +14,11 @@ from std_msgs.msg import UInt8, Int32
 class IMUSerialNode:
     def __init__(self):
         rospy.init_node('serial_node', log_level=rospy.INFO)
-        self.serial_port = serial.Serial('/dev/ttyserial', 9600, timeout=1)
-        """try:
+        #self.serial_port = serial.Serial('/dev/ttyserial', 9600, timeout=1)
+        try:
             self.serial_port = serial.Serial('/dev/ttyserial', 9600, timeout=1)
         except Exception as e:
-            rospy.logerr("Failed to open serial port")"""
+            rospy.logerr("Failed to open serial port")
         self.buffer = bytearray()
         self.receiving = False
         self.length = 0

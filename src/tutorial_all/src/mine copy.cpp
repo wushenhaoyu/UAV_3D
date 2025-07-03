@@ -55,7 +55,7 @@ bool flag_vision_ready = false;
 int vision_ready_count = 0;
 
 nav_msgs::Odometry local_pos;
-geometry_msgs::PoseStamped pose;
+mavros_msgs::PositionTarget setpoint_raw;
 bool point_arrive_flag = false;
 
 ros::Publisher true_pos_pub;
@@ -144,15 +144,15 @@ double getAngleBetweenPoints(double* out_err = nullptr) {
 
 
 double getLengthBetweenPoints(double *out_err_x = nullptr, double *out_err_y = nullptr) {
-    double err_x = pose.pose.position.x - local_pos.pose.pose.position.x;
-    double err_y = pose.pose.position.y - local_pos.pose.pose.position.y;
+    double err_x = setpoint_raw.position.x - local_pos.pose.pose.position.x;
+    double err_y = setpoint_raw.position.y - local_pos.pose.pose.position.y;
     if (out_err_x) *out_err_x = err_x;
     if (out_err_y) *out_err_y = err_y;
     return sqrt(err_x * err_x + err_y * err_y);
 }
 
 double getHeightBetweenPoints(double *out_err_z = nullptr) {
-    double err_z = pose.pose.position.z - local_pos.pose.pose.position.z;
+    double err_z = setpoint_raw.position.z - local_pos.pose.pose.position.z;
     if (out_err_z) *out_err_z = err_z;
     return fabs(err_z);
 }
@@ -191,9 +191,10 @@ void change_yaw(int direction){
         ROS_INFO("\033[32mComplete a yaw change\033[0m");
     }else{
         yaw_target = trans_yaw(direction);
-	double yaw_target_t = initial_yaw + yaw_target;
+	    double yaw_target_t = initial_yaw + yaw_target;
         tf::Quaternion q = tf::createQuaternionFromRPY(0.0, 0.0, yaw_target_t);
         tf::quaternionTFToMsg(q, pose.pose.orientation);
+        setpoint_raw.yaw = yaw_target_t;
 //	ROS_INFO("yaw_eror:%f,yaw_target:%f,yaw_correct:%f\n",getAngleBetweenPoints(),yaw_target,yaw_correct);
     }
 
@@ -205,9 +206,9 @@ void end_fly_task() {
 }
 
 void fly_to_point(double x, double y, double z, double stop_time) {
-    pose.pose.position.x = init_position_x_take_off + x;
-    pose.pose.position.y = init_position_y_take_off + y;
-    pose.pose.position.z = init_position_z_take_off + z;
+    setpoint_raw.position.x = init_position_x_take_off + x;
+    setpoint_raw.position.y = init_position_y_take_off + y;
+    setpoint_raw.position.z = init_position_z_take_off + z;
 
     if (getLengthBetweenPoints() < 0.1 && getHeightBetweenPoints() < 0.1 && ros::Time::now() - last_request > ros::Duration(1.0)) {
         if (!point_arrive_flag) {
@@ -246,309 +247,6 @@ void run_fly_task2() {
     }
 }
 
-void run_fly_task_2024_1()
-{
-    switch(fly_task_state)
-    {
-        case 0:
-            fly_to_point(0.0, 2.0, 1.4, 1); // 遍历前3、2、1点
-        break;
-        case 1:
-            fly_to_point(0.0, 2.0, 1.0, 1); // 下降高度
-        break;
-        case 2:
-            fly_to_point(0.0, -0.2, 1.0, 1); // 遍历4、5、6点
-        break;
-        case 3:
-            fly_to_point(1.75, -0.2, 1.0, 1); // 飞到中间
-        break;
-        case 4:
-            fly_to_point(1.75, 2.0, 1.0, 1); // 遍历18、17、16
-        break;
-        case 5:
-            fly_to_point(1.75, 2.0, 1.4, 1); // 上升高度
-        break;
-        case 6:
-            fly_to_point(1.75, 0.0, 1.4, 1); // 遍历13、14、15
-        break;
-        case 7:
-            change_yaw(1); // 转180度
-        break;
-        case 8:
-            fly_to_point(1.75, 2.0, 1.4, 1); // 遍历7、8、9
-        break;
-        case 9:
-            fly_to_point(1.75, 2.0, 1.0, 1); // 下降高度
-        break;
-        case 10:
-            fly_to_point(1.75, -0.2, 1.0, 1); // 遍历12、11、10
-        break;
-        case 11:
-            fly_to_point(3.5, -0.1, 1.0, 1); // 到最后一个板子
-        break;
-        case 12:
-            fly_to_point(3.5, 2.0, 1.0, 1); // 遍历22、23、24
-        break;
-        case 13:
-            fly_to_point(3.5, 2.0, 1.4, 1); // 上升高度
-        break;
-        case 14:
-            fly_to_point(3.5, 0.0, 1.4, 1); // 遍历21、20、19
-        break;
-        case 15:
-            end_fly_task();
-        break;
-    }
-}
-
-void run_fly_task_2024_2()
-{
-    if(fly_target > 0x00 && fly_target <= 0x06) // 1～6
-    {
-        if(fly_target <= 0x03) //1～3
-        {
-            switch (fly_task_state)
-            {
-            case 0:
-                fly_to_point(0.0, 0.0, 1.4, 1);
-            break;
-            case 1:
-                if(fly_target == 0x03){
-                    fly_to_point(0.0, 0.75, 1.4, 4);
-                }else if(fly_target == 0x02){
-                    fly_to_point(0.0, 1.25, 1.4, 4);
-                }else if (fly_target == 0x01){
-                    fly_to_point(0.0, 1.75, 1.4, 4);
-                }
-            break;
-            case 2:
-                fly_to_point(0.0, -0.1, 1.4, 1);
-            break;
-            case 3:
-                fly_to_point(3.5, -0.1, 1.4, 1);
-            break;
-            case 4:
-                end_fly_task();
-            break;  
-            }
-        }else if(fly_target > 0x03) //4～6 
-        {
-            switch (fly_task_state)
-            {
-            case 0:
-                fly_to_point(0.0, 0.0, 1.0, 1);
-            break;
-            case 1:
-                if(fly_target == 0x06){
-                    fly_to_point(0.0, 0.75, 1.0, 4);
-                }else if(fly_target == 0x05){
-                    fly_to_point(0.0, 1.25, 1.0, 4);
-                }else if (fly_target == 0x04){
-                    fly_to_point(0.0, 1.75, 1.0, 4);
-                }
-            break;
-            case 2:
-                fly_to_point(0.0, -0.1, 1.4, 1);
-            break;
-            case 3:
-                fly_to_point(3.5, -0.1, 1.4, 1);
-            break;
-            case 4:
-                end_fly_task();
-            break;  
-            }
-        }
-    }else if(fly_target >= 0x07 && fly_target <= 0x12) //7～18
-    {
-        if(fly_target >= 0x07 && fly_target <= 0x0C)
-        {
-            if(fly_target > 0x09)
-            {
-                switch (fly_task_state)
-                {
-                case 0:
-                    fly_to_point(1.75, -0.1, 1.0, 1);
-                break;
-                case 1:
-                    change_yaw(1);
-                break;
-                case 2:
-                    if(fly_target == 0x0A){
-                        fly_to_point(1.75, 0.75, 1.0, 4);
-                    }else if(fly_target == 0x0B){
-                        fly_to_point(1.75, 1.25, 1.0, 4);
-                    }else if (fly_target == 0x0C){
-                        fly_to_point(1.75, 1.75, 1.0, 4);
-                    }
-                break;
-                case 3:
-                    fly_to_point(1.75, -0.1, 1.4, 1);
-                break;
-                case 4:
-                    fly_to_point(3.5,-0.1, 1.4, 1);
-                break;
-                case 5:
-                    end_fly_task();
-                break;  
-                }
-            }else if(fly_target <= 0x09)
-            {
-                switch (fly_task_state)
-                {
-                case 0:
-                    fly_to_point(1.75, -0.1, 1.4, 1);
-                break;
-                case 1:
-                    change_yaw(1);
-                break;
-                case 2:
-                    if(fly_target == 0x07){
-                        fly_to_point(1.75, 0.75, 1.4, 4);
-                    }else if(fly_target == 0x08){
-                        fly_to_point(1.75, 1.25, 1.4, 4);
-                    }else if (fly_target == 0x09){
-                        fly_to_point(1.75, 1.75, 1.4, 4);
-                    }
-                break;
-                case 3:
-                    fly_to_point(1.75, -0.1, 1.4, 1);
-                break;
-                case 4:
-                    fly_to_point(3.5, -0.1 , 1.4, 1);
-                break;
-                case 5:
-                    end_fly_task();
-                break;  
-                }
-            }
-        }else if(fly_target >= 0x0D && fly_target <= 0x12)
-        {
-            if(fly_target > 0x0F)
-            {
-                switch (fly_task_state)
-                {
-                case 0:
-                    fly_to_point(1.75, -0.1, 1.0, 1);
-                break;
-                case 1:
-                    if(fly_target == 0x10){
-                        fly_to_point(1.75, 0.75, 1.0, 4);
-                    }else if(fly_target == 0x11){
-                        fly_to_point(1.75, 1.25, 1.0, 4);
-                    }else if (fly_target == 0x12){
-                        fly_to_point(1.75, 1.75, 1.0, 4);
-                    }
-                break;
-                case 2:
-                    fly_to_point(1.75, -0.1, 1.4, 1);
-                break;
-                case 3:
-                    fly_to_point(3.5,-0.1, 1.4, 1);
-                break;
-                case 4:
-                    end_fly_task();
-                break;  
-                }
-            }else if(fly_target <= 0x0F)
-            {
-                switch (fly_task_state)
-                {
-                case 0:
-                    fly_to_point(1.75, -0.1, 1.4, 1);
-                break;
-                case 1:
-                    if(fly_target == 0x0D){
-                        fly_to_point(1.75, 0.75, 1.4, 4);
-                    }else if(fly_target == 0x0E){
-                        fly_to_point(1.75, 1.25, 1.4, 4);
-                    }else if (fly_target == 0x0F){
-                        fly_to_point(1.75, 1.75, 1.4, 4);
-                    }
-                break;
-                case 2:
-                    fly_to_point(1.75, -0.1, 1.4, 1);
-                break;
-                case 3:
-                    fly_to_point(3.5,-0.1, 1.4, 1);
-                break;
-                case 4:
-                    end_fly_task();
-                break;  
-                }
-            }
-
-        }
-
-    }else if(fly_target >= 0x13 && fly_target <= 0x18){
-            if(fly_target > 0x15)
-            {
-                switch (fly_task_state)
-                {
-                case 0:
-                    fly_to_point(3.5, -0.1, 1.0, 1);
-                break;
-                case 1:
-                    change_yaw(1);
-                break;
-                case 2:
-                    if(fly_target == 0x16){
-                        fly_to_point(3.5, 0.75, 1.0, 4);
-                    }else if(fly_target == 0x17){
-                        fly_to_point(3.5, 1.25, 1.0, 4);
-                    }else if (fly_target == 0x18){
-                        fly_to_point(3.5, 1.75, 1.0, 4);
-                    }
-                break;
-                case 3:
-                    fly_to_point(3.5, 2.5, 1.0, 1);
-                break;
-                case 4:
-                    end_fly_task();
-                break;  
-                }
-            }else if(fly_target <= 0x15)
-            {
-                switch (fly_task_state)
-                {
-                case 0:
-                    fly_to_point(3.5, -0.1, 1.4, 1);
-                break;
-                case 1:
-                    change_yaw(1);
-                break;
-                case 2:
-                    if(fly_target == 0x13){
-                        fly_to_point(3.5, 0.75, 1.4, 4);
-                    }else if(fly_target == 0x14){
-                        fly_to_point(3.5, 1.25, 1.4, 4);
-                    }else if (fly_target == 0x15){
-                        fly_to_point(3.5, 1.75, 1.4, 4);
-                    }
-                break;
-                case 3:
-                    fly_to_point(3.5, 2.5, 1.4, 1);
-                break;
-                case 4:
-                    end_fly_task();
-                break;  
-                }
-            }
-
-    }else{
-        switch (fly_task_state)
-        {
-        case 0:
-            fly_to_point(0.0, -0.1, 1.4, 1);
-        break;
-	case 1:
-		fly_to_point(3.5,-0.1,1.4,1);
-		break;
-        case 2:
-           end_fly_task();
-        break;
-        }
-    }
-}
 
 int main(int argc, char **argv) {
     ros::init(argc, argv, "navigation_node");
@@ -556,7 +254,7 @@ int main(int argc, char **argv) {
     ros::Rate rate(20.0);
 
     ros::Publisher fly_task_pub = nh.advertise<std_msgs::Int32>("fly_task", 1);
-    local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 10);
+    local_pos_pub = nh.advertise<mavros_msgs::PositionTarget>("/mavros/setpoint_raw/local", 10);
     yaw_symbol_pub = nh.advertise<std_msgs::Int32>("yaw_symbol", 1);
     true_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("true_position", 10);
 
@@ -573,14 +271,16 @@ int main(int argc, char **argv) {
     }
 
     for (int i = 100; ros::ok() && i > 0; --i) {
-        local_pos_pub.publish(pose);
+        local_pos_pub.publish(setpoint_raw);
         ros::spinOnce(); rate.sleep();
     }
 
     last_request = ros::Time::now();
-    pose.pose.position.x = init_position_x_take_off + 0;
-    pose.pose.position.y = init_position_y_take_off + 0;
-    pose.pose.position.z = init_position_z_take_off + ALTITUDE;
+    setpoint_raw.type_mask = 8 + 16 + 32 + 64 + 128 + 256 + 2048 ;
+	setpoint_raw.coordinate_frame = 1;
+    setpoint_raw.position.x = init_position_x_take_off + 0;
+    setpoint_raw.position.y = init_position_y_take_off + 0;
+    setpoint_raw.position.z = init_position_z_take_off + ALTITUDE;
 
     while (ros::ok()) {
         if(fsm_state == 0)
@@ -621,16 +321,16 @@ int main(int argc, char **argv) {
 			ROS_INFO("\033[32mFly Task 2 starting!\033[0m");
 		    }
                 } else {
-                    pose.pose.position.x = init_position_x_take_off + 0;
-                    pose.pose.position.y = init_position_y_take_off + 0;
-                    pose.pose.position.z = init_position_z_take_off + ALTITUDE;
+                    setpoint_raw.position.x = init_position_x_take_off + 0;
+                    setpoint_raw.position.y = init_position_y_take_off + 0;
+                    setpoint_raw.position.z = init_position_z_take_off + ALTITUDE;
                 }
                 break;
             case 3:
                 if(fly_task == 1){
-                    run_fly_task_2024_1();
+                    run_fly_task1();
                 }else if(fly_task == 2){
-                    run_fly_task_2024_2();
+                    run_fly_task2();
                 }
                 break;
             case 100:
@@ -639,9 +339,9 @@ int main(int argc, char **argv) {
                     fsm_state = 101;
                     last_request = ros::Time::now();
                 }else{
-                    pose.pose.position.x = init_position_x_take_off + END_X;
-                    pose.pose.position.y = init_position_y_take_off + END_Y;
-                    pose.pose.position.z = init_position_z_take_off + ALTITUDE;
+                    setpoint_raw.position.x = init_position_x_take_off + END_X;
+                    setpoint_raw.position.y = init_position_y_take_off + END_Y;
+                    setpoint_raw.position.z = init_position_z_take_off + ALTITUDE;
                 }
                 break;
 	    case 101:
@@ -650,9 +350,9 @@ int main(int argc, char **argv) {
                     fsm_state = 102;
                     last_request = ros::Time::now();
                 }else{
-                    pose.pose.position.x = init_position_x_take_off + END_X;
-                    pose.pose.position.y = init_position_y_take_off + END_Y;
-                    pose.pose.position.z = init_position_z_take_off + END_Z;
+                    setpoint_raw.position.x = init_position_x_take_off + END_X;
+                    setpoint_raw.position.y = init_position_y_take_off + END_Y;
+                    setpoint_raw.position.z = init_position_z_take_off + END_Z;
                 }
                 break;
             case 102:
@@ -673,7 +373,9 @@ int main(int argc, char **argv) {
                 break;
         }
 
-        local_pos_pub.publish(pose);
+        if(fly_ctrl_state == 0){
+            local_pos_pub.publish(setpoint_raw);
+        }
         ros::spinOnce(); 
         rate.sleep();
     }

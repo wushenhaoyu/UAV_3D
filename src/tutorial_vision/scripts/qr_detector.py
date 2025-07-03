@@ -13,7 +13,14 @@ from tutorial_vision.msg import StringStamped
 def image_cb(msg, bridge, pub):
     try:
         cv_image = bridge.imgmsg_to_cv2(msg, "bgr8")
-        decoded_objects = decode(cv_image)
+        
+        # 裁剪图像宽度一半，以中心为基准
+        height, width = cv_image.shape[:2]
+        start_x = width // 4  # 起始x坐标
+        end_x = start_x + width // 2  # 结束x坐标
+        cropped_image = cv_image[:, start_x:end_x]
+
+        decoded_objects = decode(cropped_image)  # 解码二维码
         
         qr_msg = StringStamped()
         qr_msg.header = msg.header
