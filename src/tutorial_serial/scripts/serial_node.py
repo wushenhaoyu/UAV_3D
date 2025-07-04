@@ -96,6 +96,7 @@ class IMUSerialNode:
 
     def yaw_symbol_callback(self, data):
         self.yaw_symbol = data.data
+        rospy.logerr("yaw_symbol: %d", self.yaw_symbol )
 
     def qr_callback(self, msg):
         try:
@@ -192,14 +193,14 @@ class IMUSerialNode:
 
     def judge_location(self):
         if(self.x > -0.5 and self.x < 1.0): #在1～6
-            if(self.z > 1.2 and self.z <1.6):
+            if(self.z > 1.1 and self.z <1.6):
                 if(self.y >0.5 and self.y < 1.0):
                     return 0x03
                 elif(self.y >1.0 and self.y < 1.5):
                     return 0x02
                 elif(self.y >1.5 and self.y < 2.0):
                     return 0x01
-            elif(self.z > 0.8 and self.z <1.2):
+            elif(self.z > 0.8 and self.z <1.1):
                 if(self.y >0.5 and self.y < 1.0):
                     return 0x06
                 elif(self.y >1.0 and self.y < 1.5):
@@ -208,14 +209,14 @@ class IMUSerialNode:
                     return 0x04   
         elif(self.x >1.0 and self.x < 2.5): #在7～18
             if(self.yaw_symbol == 0 ):#在13～18
-                if(self.z > 1.2 and self.z <1.6):
+                if(self.z > 1.1 and self.z <1.6):
                     if(self.y >0.5 and self.y < 1.0):
-                        return 0x0D
+                        return 0x0F
                     elif(self.y >1.0 and self.y < 1.5):
-                        return 0x0C
+                        return 0x0E
                     elif(self.y >1.5 and self.y < 2.0):
-                        return 0x0B
-                elif(self.z > 0.8 and self.z <1.2):
+                        return 0x0D
+                elif(self.z > 0.8 and self.z <1.1):
                     if(self.y >0.5 and self.y < 1.0):
                         return 0x12
                     elif(self.y >1.0 and self.y < 1.5):
@@ -223,14 +224,14 @@ class IMUSerialNode:
                     elif(self.y >1.5 and self.y < 2.0):
                         return 0x10  
             elif(self.yaw_symbol == 1):#在7～12
-                if(self.z > 1.2 and self.z <1.6):
+                if(self.z > 1.1 and self.z <1.6):
                     if(self.y >0.5 and self.y < 1.0):
                         return 0x07
                     elif(self.y >1.0 and self.y < 1.5):
                         return 0x08
                     elif(self.y >1.5 and self.y < 2.0):
                         return 0x09
-                elif(self.z > 0.8 and self.z <1.2):
+                elif(self.z > 0.8 and self.z <1.1):
                     if(self.y >0.5 and self.y < 1.0):
                         return 0x0A
                     elif(self.y >1.0 and self.y < 1.5):
@@ -238,14 +239,14 @@ class IMUSerialNode:
                     elif(self.y >1.5 and self.y < 2.0):
                         return 0x0C 
         elif(self.x >2.5 and self.x < 4.0): #在19～24
-            if(self.z > 1.2 and self.z <1.6):
+            if(self.z > 1.1 and self.z <1.6):
                 if(self.y >0.5 and self.y < 1.0):
                     return 0x13
                 elif(self.y >1.0 and self.y < 1.5):
                     return 0x14
                 elif(self.y >1.5 and self.y < 2.0):
                     return 0x15
-            elif(self.z > 0.8 and self.z <1.2):
+            elif(self.z > 0.8 and self.z <1.1):
                 if(self.y >0.5 and self.y < 1.0):
                     return 0x16
                 elif(self.y >1.0 and self.y < 1.5):

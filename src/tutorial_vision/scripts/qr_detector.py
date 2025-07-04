@@ -10,7 +10,6 @@ from sensor_msgs.msg import Image
 from tutorial_vision.msg import StringStamped
 from std_msgs.msg import Int32
 
-camera_en = 0
 def image_cb(msg, bridge, str_pub, img_pub):
     try:
         cv_image = bridge.imgmsg_to_cv2(msg, "bgr8")

@@ -267,22 +267,22 @@ void run_fly_task_2024_1()
     switch(fly_task_state)
     {
         case 0:
-            fly_to_point(0.0, 0.5, 1.4, 1); // 遍历前3、2、1点
+            fly_to_point(0.0, 0.7, 1.4, 3); // 遍历前3、2、1点
         break;
         case 1:
-            fly_to_point(0.0, 1.0, 1.4, 1); // 遍历前3、2、1点
+            fly_to_point(0.0, 1.2, 1.4, 3); // 遍历前3、2、1点
         break;
         case 2:
-            fly_to_point(0.0, 1.5, 1.4, 1); // 遍历前3、2、1点
+            fly_to_point(0.0, 1.7, 1.4, 3); // 遍历前3、2、1点
         break;
         case 3:
-            fly_to_point(0.0, 1.5, 1.0, 1); // 下降高度
+            fly_to_point(0.0, 1.7, 1.0, 3); // 下降高度
         break;
         case 4:
-            fly_to_point(0.0, 1.0, 1.0, 1); // 下降高度
+            fly_to_point(0.0, 1.2, 1.0, 3); // 下降高度
         break;
         case 5:
-            fly_to_point(0.0, 0.5, 1.0, 1); // 下降高度
+            fly_to_point(0.0, 0.7, 1.0, 3); // 下降高度
         break;
         case 6:
             fly_to_point(0.0, -0.25, 1.0, 1); // 遍历4、5、6点
@@ -291,25 +291,25 @@ void run_fly_task_2024_1()
             fly_to_point(2.0, -0.25, 1.0, 1); // 飞到中间
         break;
         case 8:
-            fly_to_point(2.0, 0.5, 1.0, 1); // 飞到中间
+            fly_to_point(2.0, 0.7, 1.0, 3); // 飞到中间
         break;
         case 9:
-            fly_to_point(2.0, 1.0, 1.0, 1); // 飞到中间
+            fly_to_point(2.0, 1.2, 1.0, 3); // 飞到中间
         break;
         case 10:
-            fly_to_point(2.0, 1.5, 1.0, 1); // 飞到中间
+            fly_to_point(2.0, 1.7, 1.0, 3); // 飞到中间
         break;
         case 11:
-            fly_to_point(2.0, 1.5, 1.4, 1); // 上升高度
+            fly_to_point(2.0, 1.7, 1.4, 3); // 上升高度
         break;
         case 12:
-            fly_to_point(2.0, 1.0, 1.4, 1); // 上升高度
+            fly_to_point(2.0, 1.2, 1.4, 3); // 上升高度
         break;
         case 13:
-            fly_to_point(2.0, 0.5, 1.4, 1); 
+            fly_to_point(2.0, 0.7, 1.4, 3); 
         break;
         case 14:
-            fly_to_point(1.75, 0.5, 1.4, 1); 
+            fly_to_point(1.75, 0.7, 1.4, 3); 
         break;
         case 15:
             fly_to_point(1.75, -0.2, 1.4, 1); 
@@ -321,51 +321,51 @@ void run_fly_task_2024_1()
             fly_to_point(1.5, -0.2, 1.4, 1); // 遍历13、14、15
         break;
         case 18:
-            fly_to_point(1.5, 0.5, 1.4, 1); // 遍历13、14、15
+            fly_to_point(1.5, 0.7, 1.4, 3); // 遍历13、14、15
         break;
         case 19:
-            fly_to_point(1.5, 1.0, 1.4, 1); // 遍历13、14、15
+            fly_to_point(1.5, 1.2, 1.4, 3); // 遍历13、14、15
         break;
         case 20:
-            fly_to_point(1.5, 1.5, 1.4, 1); // 遍历13、14、15
+            fly_to_point(1.5, 1.7, 1.4, 3); // 遍历13、14、15
         break;
         case 21:
-            fly_to_point(1.5, 1.5, 1.0, 1); // 遍历13、14、15
+            fly_to_point(1.5, 1.7, 1.0, 3); // 遍历13、14、15
         break;
         case 22:
-            fly_to_point(1.5, 1.0, 1.0, 1); // 遍历13、14、15
+            fly_to_point(1.5, 1.2, 1.0, 3); // 遍历13、14、15
         break;
         case 23:
-            fly_to_point(1.5, 0.5, 1.0, 1); // 遍历13、14、15
+            fly_to_point(1.5, 0.7, 1.0, 3); // 遍历13、14、15
         break;
         case 24:
-            fly_to_point(1.75, 0.5, 1.0, 1); // 遍历13、14、15
+            fly_to_point(1.75, 0.7, 1.0, 3); // 遍历13、14、15
         break;
-        case 26:
+        case 25:
             fly_to_point(1.75, -0.25, 1.0, 1); // 遍历13、14、15
         break;
-        case 27:
+        case 26:
             fly_to_point(3.5, -0.25, 1.0, 1); // 遍历13、14、15
         break;
+        case 27:
+            fly_to_point(3.5, 0.7, 1.0, 3); // 遍历22、23、24
+        break;
         case 28:
-            fly_to_point(3.5, 0.5, 1.0, 1); // 遍历22、23、24
+            fly_to_point(3.5, 1.2, 1.0, 3); // 遍历22、23、24
         break;
         case 29:
-            fly_to_point(3.5, 1.0, 1.0, 1); // 遍历22、23、24
+            fly_to_point(3.5, 1.7, 1.0, 3); // 遍历22、23、24
         break;
         case 30:
-            fly_to_point(3.5, 1.5, 1.0, 1); // 遍历22、23、24
+            fly_to_point(3.5, 1.7, 1.4, 3); // 遍历22、23、24
         break;
         case 31:
-            fly_to_point(3.5, 1.5, 1.4, 1); // 遍历22、23、24
+            fly_to_point(3.5, 1.2, 1.4, 3); // 遍历22、23、24
         break;
         case 32:
-            fly_to_point(3.5, 1.0, 1.4, 1); // 遍历22、23、24
+            fly_to_point(3.5, 0.7, 1.4, 3); // 遍历22、23、24
         break;
         case 33:
-            fly_to_point(3.5, 0.5, 1.4, 1); // 遍历22、23、24
-        break;
-        case 34:
             end_fly_task();
         break;
     }
@@ -743,7 +743,6 @@ int main(int argc, char **argv) {
                 }
                 break;
         }
-        camera_enable();
         local_pos_pub.publish(pose);
         ros::spinOnce(); 
         rate.sleep();
