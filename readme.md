@@ -12,34 +12,6 @@
 
 给自启动脚本权限 `chmod +x /home/flmg/UAV_3D/run.bash` </br>
 
-编写自启动文件 `sudo vim /etc/systemd/system/launch_tutorial.service` </br>
-```
-[Unit]
-Description=ROS Launch Script
-After=network.target
+自启动命令 `gnome-terminal -x /home/flmg/UAV_3D/run.bash`</br>
 
-[Service]
-ExecStart=/home/flmg/UAV_3D/run.bash
-WorkingDirectory=/home/flmg/UAV_3D
-User=flmg
-Group=flmg
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-</br>
-
- 重新载入配置 `sudo systemctl daemon-reload` </br>
-
- 启用服务 `sudo systemctl enable launch_tutorial.service` </br>
- 
- 启动服务 `sudo systemctl start launch_tutorial.service` </br>
- 
- 检查服务状态 `sudo systemctl status launch_tutorial.service`</br>
- 
- 停止服务 `sudo systemctl stop launch_tutorial.service`</br>
- 
- 禁用服务 `sudo systemctl disable launch_tutorial.service`</br>
-
- 喜欢的话请给个star，链接:<link href="https://github.com/wushenhaoyu/UAV_3D"> 
+ 喜欢的话请给个star，<link href="https://github.com/wushenhaoyu/UAV_3D"> 
