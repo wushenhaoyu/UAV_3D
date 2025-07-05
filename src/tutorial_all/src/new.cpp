@@ -19,6 +19,8 @@
 #include <tutorial_vision/CircleDetectResult.h>
 #include <tutorial_vision/StringStamped.h>
 #include <cmath>
+#include <std_msgs/Bool.h>
+
 
 #define ALTITUDE  1.4
 #define END_X 3.5
@@ -61,6 +63,7 @@ bool point_arrive_flag = false;
 ros::Publisher true_pos_pub;
 ros::Publisher yaw_symbol_pub;
 ros::Publisher local_pos_pub;
+ros::Publisher camera_en_pub ;
 
 void vision_pos_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
@@ -157,6 +160,20 @@ double getHeightBetweenPoints(double *out_err_z = nullptr) {
     return fabs(err_z);
 }
 
+void camera_enable(){
+    std_msgs::Bool task_msg;
+    task_msg.data = true;
+    camera_en_pub.publish(task_msg);
+    ROS_INFO("Camera enabled.");
+}
+
+void camera_disable(){
+    std_msgs::Bool task_msg;
+    task_msg.data = false;
+    camera_en_pub.publish(task_msg);
+    ROS_INFO("Camera disabled.");
+}
+
 
 /*
  * @brief : 转化对应 yaw，0 为起飞前方（+X），1 为后方（-X），2 为左方（+Y），3 为右方（-Y）
@@ -212,10 +229,12 @@ void fly_to_point(double x, double y, double z, double stop_time) {
         if (!point_arrive_flag) {
             point_arrive_flag = true;
             last_request = ros::Time::now();
+            camera_enable();
         } else if (ros::Time::now() - last_request > ros::Duration(stop_time)) {
             point_arrive_flag = false;
             last_request = ros::Time::now();
             fly_task_state++;
+            camera_disable();
             ROS_INFO("\033[32mComplete a fly task\033[0m");
         }
     }
@@ -245,6 +264,115 @@ void run_fly_task2() {
     }
 }
 
+void run_fly_task_2024_1()
+{
+    switch(fly_task_state)
+    {
+        case 0:
+            fly_to_point(0.0, 0.7, 1.4, 3); // 遍历前3、2、1点
+        break;
+        case 1:
+            fly_to_point(0.0, 1.2, 1.4, 3); // 遍历前3、2、1点
+        break;
+        case 2:
+            fly_to_point(0.0, 1.7, 1.4, 3); // 遍历前3、2、1点
+        break;
+        case 3:
+            fly_to_point(0.0, 1.7, 1.0, 3); // 下降高度
+        break;
+        case 4:
+            fly_to_point(0.0, 1.2, 1.0, 3); // 下降高度
+        break;
+        case 5:
+            fly_to_point(0.0, 0.7, 1.0, 3); // 下降高度
+        break;
+        case 6:
+            fly_to_point(0.0, -0.25, 1.0, 1); // 遍历4、5、6点
+        break;
+        case 7:
+            fly_to_point(2.0, -0.25, 1.0, 1); // 飞到中间
+        break;
+        case 8:
+            fly_to_point(2.0, 0.7, 1.0, 3); // 飞到中间
+        break;
+        case 9:
+            fly_to_point(2.0, 1.2, 1.0, 3); // 飞到中间
+        break;
+        case 10:
+            fly_to_point(2.0, 1.7, 1.0, 3); // 飞到中间
+        break;
+        case 11:
+            fly_to_point(2.0, 1.7, 1.4, 3); // 上升高度
+        break;
+        case 12:
+            fly_to_point(2.0, 1.2, 1.4, 3); // 上升高度
+        break;
+        case 13:
+            fly_to_point(2.0, 0.7, 1.4, 3); 
+        break;
+        case 14:
+            fly_to_point(1.75, 0.7, 1.4, 3); 
+        break;
+        case 15:
+            fly_to_point(1.75, -0.2, 1.4, 1); 
+        break;
+        case 16:
+            change_yaw(1); // 转180度
+        break;
+        case 17:
+            fly_to_point(1.5, -0.2, 1.4, 1); // 遍历13、14、15
+        break;
+        case 18:
+            fly_to_point(1.5, 0.7, 1.4, 3); // 遍历13、14、15
+        break;
+        case 19:
+            fly_to_point(1.5, 1.2, 1.4, 3); // 遍历13、14、15
+        break;
+        case 20:
+            fly_to_point(1.5, 1.7, 1.4, 3); // 遍历13、14、15
+        break;
+        case 21:
+            fly_to_point(1.5, 1.7, 1.0, 3); // 遍历13、14、15
+        break;
+        case 22:
+            fly_to_point(1.5, 1.2, 1.0, 3); // 遍历13、14、15
+        break;
+        case 23:
+            fly_to_point(1.5, 0.7, 1.0, 3); // 遍历13、14、15
+        break;
+        case 24:
+            fly_to_point(1.75, 0.7, 1.0, 3); // 遍历13、14、15
+        break;
+        case 25:
+            fly_to_point(1.75, -0.25, 1.0, 1); // 遍历13、14、15
+        break;
+        case 26:
+            fly_to_point(3.5, -0.25, 1.0, 1); // 遍历13、14、15
+        break;
+        case 27:
+            fly_to_point(3.5, 0.7, 1.0, 3); // 遍历22、23、24
+        break;
+        case 28:
+            fly_to_point(3.5, 1.2, 1.0, 3); // 遍历22、23、24
+        break;
+        case 29:
+            fly_to_point(3.5, 1.7, 1.0, 3); // 遍历22、23、24
+        break;
+        case 30:
+            fly_to_point(3.5, 1.7, 1.4, 3); // 遍历22、23、24
+        break;
+        case 31:
+            fly_to_point(3.5, 1.2, 1.4, 3); // 遍历22、23、24
+        break;
+        case 32:
+            fly_to_point(3.5, 0.7, 1.4, 3); // 遍历22、23、24
+        break;
+        case 33:
+            end_fly_task();
+        break;
+    }
+}
+
 
 int main(int argc, char **argv) {
     ros::init(argc, argv, "navigation_node");
@@ -252,6 +380,7 @@ int main(int argc, char **argv) {
     ros::Rate rate(20.0);
 
     ros::Publisher fly_task_pub = nh.advertise<std_msgs::Int32>("fly_task", 1);
+    camera_en_pub = nh.advertise<std_msgs::Bool>("camera_en", 1);
     local_pos_pub = nh.advertise<mavros_msgs::PositionTarget>("/mavros/setpoint_raw/local", 10);
     yaw_symbol_pub = nh.advertise<std_msgs::Int32>("yaw_symbol", 1);
     true_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("true_position", 10);
@@ -275,7 +404,7 @@ int main(int argc, char **argv) {
 
     last_request = ros::Time::now();
     setpoint_raw.type_mask = 8 + 16 + 32 + 64 + 128 + 256 + 2048 ;
-	setpoint_raw.coordinate_frame = 1;
+	setpoint_raw.coordinate_frame = mavros_msgs::PositionTarget::FRAME_LOCAL_NED;
     setpoint_raw.position.x = init_position_x_take_off + 0;
     setpoint_raw.position.y = init_position_y_take_off + 0;
     setpoint_raw.position.z = init_position_z_take_off + ALTITUDE;
@@ -325,11 +454,12 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 3:
-                if(fly_task == 1){
+                run_fly_task_2024_1();
+                /*if(fly_task == 1){
                     run_fly_task1();
                 }else if(fly_task == 2){
                     run_fly_task2();
-                }
+                }*/
                 break;
             case 100:
                 if(getLengthBetweenPoints() < 0.1 && getHeightBetweenPoints() < 0.1   && ros::Time::now() - last_request > ros::Duration(8.0))
@@ -373,6 +503,11 @@ int main(int argc, char **argv) {
 
         if(fly_ctrl_state == 0){
             local_pos_pub.publish(setpoint_raw);
+	    ROS_INFO("Publishing setpoint_raw: frame=%d, x=%.2f, y=%.2f, z=%.2f",
+         setpoint_raw.coordinate_frame,
+         setpoint_raw.position.x,
+         setpoint_raw.position.y,
+         setpoint_raw.position.z);
         }
         ros::spinOnce(); 
         rate.sleep();

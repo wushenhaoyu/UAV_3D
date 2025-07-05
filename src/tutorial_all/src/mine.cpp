@@ -34,7 +34,7 @@ int fsm_state = 0;
 int fly_task_state = 0;
 int fly_ctrl_state = 0;
 int fly_task = 1;
-int8_t fly_target = 0x00;
+int8_t fly_target = 0x0A;
 
 
 mavros_msgs::State current_state;
@@ -371,6 +371,7 @@ void run_fly_task_2024_1()
     }
 }
 
+
 void run_fly_task_2024_2()
 {
     if(fly_target > 0x00 && fly_target <= 0x06) // 1～6
@@ -380,7 +381,7 @@ void run_fly_task_2024_2()
             switch (fly_task_state)
             {
             case 0:
-                fly_to_point(0.0, 0.0, 1.4, 1);
+                fly_to_point(0.0, 0.0, 1.4, 3);
             break;
             case 1:
                 if(fly_target == 0x03){
@@ -392,10 +393,10 @@ void run_fly_task_2024_2()
                 }
             break;
             case 2:
-                fly_to_point(0.0, -0.1, 1.4, 1);
+                fly_to_point(0.0, -0.25, 1.4, 1);
             break;
             case 3:
-                fly_to_point(3.5, -0.1, 1.4, 1);
+                fly_to_point(3.5, -0.25, 1.4, 1);
             break;
             case 4:
                 end_fly_task();
@@ -406,7 +407,7 @@ void run_fly_task_2024_2()
             switch (fly_task_state)
             {
             case 0:
-                fly_to_point(0.0, 0.0, 1.0, 1);
+                fly_to_point(0.0, 0.0, 1.0, 3);
             break;
             case 1:
                 if(fly_target == 0x06){
@@ -418,10 +419,10 @@ void run_fly_task_2024_2()
                 }
             break;
             case 2:
-                fly_to_point(0.0, -0.1, 1.4, 1);
+                fly_to_point(0.0, -0.25, 1.4, 1);
             break;
             case 3:
-                fly_to_point(3.5, -0.1, 1.4, 1);
+                fly_to_point(3.5, -0.25, 1.4, 1);
             break;
             case 4:
                 end_fly_task();
@@ -437,27 +438,39 @@ void run_fly_task_2024_2()
                 switch (fly_task_state)
                 {
                 case 0:
-                    fly_to_point(1.75, -0.1, 1.0, 1);
+                    fly_to_point(0, 0, 1.0, 1);
                 break;
                 case 1:
-                    change_yaw(1);
+                    fly_to_point(0, -0.25, 1.0, 1);
                 break;
                 case 2:
-                    if(fly_target == 0x0A){
-                        fly_to_point(1.75, 0.75, 1.0, 4);
-                    }else if(fly_target == 0x0B){
-                        fly_to_point(1.75, 1.25, 1.0, 4);
-                    }else if (fly_target == 0x0C){
-                        fly_to_point(1.75, 1.75, 1.0, 4);
-                    }
+                    fly_to_point(1.75, -0.25, 1.0, 1);
                 break;
                 case 3:
-                    fly_to_point(1.75, -0.1, 1.4, 1);
+                    change_yaw(1);
                 break;
                 case 4:
-                    fly_to_point(3.5,-0.1, 1.4, 1);
+                    fly_to_point(1.5, -0.25, 1.0, 1);
                 break;
                 case 5:
+                    if(fly_target == 0x0A){
+                        fly_to_point(1.5, 0.75, 1.0, 4);
+                    }else if(fly_target == 0x0B){
+                        fly_to_point(1.5, 1.25, 1.0, 4);
+                    }else if (fly_target == 0x0C){
+                        fly_to_point(1.5, 1.75, 1.0, 4);
+                    }
+                break;
+                case 6:
+                    fly_to_point(1.75, -0.25, 1.0, 1);
+                break;
+                case 7:
+                    fly_to_point(1.75, -0.25, 1.4, 1);
+                break;
+                case 8:
+                    fly_to_point(3.5,-0.25, 1.4, 1);
+                break;
+                case 9:
                     end_fly_task();
                 break;  
                 }
@@ -466,27 +479,33 @@ void run_fly_task_2024_2()
                 switch (fly_task_state)
                 {
                 case 0:
-                    fly_to_point(1.75, -0.1, 1.4, 1);
+                    fly_to_point(0, -0.25, 1.4, 1);
                 break;
                 case 1:
-                    change_yaw(1);
+                    fly_to_point(1.75, -0.25, 1.4, 1);
                 break;
                 case 2:
-                    if(fly_target == 0x07){
-                        fly_to_point(1.75, 0.75, 1.4, 4);
-                    }else if(fly_target == 0x08){
-                        fly_to_point(1.75, 1.25, 1.4, 4);
-                    }else if (fly_target == 0x09){
-                        fly_to_point(1.75, 1.75, 1.4, 4);
-                    }
+                    change_yaw(1);
                 break;
                 case 3:
-                    fly_to_point(1.75, -0.1, 1.4, 1);
+                    fly_to_point(1.5, -0.25, 1.4, 1);
                 break;
                 case 4:
-                    fly_to_point(3.5, -0.1 , 1.4, 1);
+                    if(fly_target == 0x07){
+                        fly_to_point(1.5, 0.75, 1.4, 4);
+                    }else if(fly_target == 0x08){
+                        fly_to_point(1.5, 1.25, 1.4, 4);
+                    }else if (fly_target == 0x09){
+                        fly_to_point(1.5, 1.75, 1.4, 4);
+                    }
                 break;
                 case 5:
+                    fly_to_point(1.5, -0.25, 1.4, 1);
+                break;
+                case 6:
+                    fly_to_point(3.5, -0.25 , 1.4, 1);
+                break;
+                case 7:
                     end_fly_task();
                 break;  
                 }
@@ -498,24 +517,30 @@ void run_fly_task_2024_2()
                 switch (fly_task_state)
                 {
                 case 0:
-                    fly_to_point(1.75, -0.1, 1.0, 1);
+                    fly_to_point(0, 0, 1.0, 1);
                 break;
                 case 1:
-                    if(fly_target == 0x10){
-                        fly_to_point(1.75, 0.75, 1.0, 4);
-                    }else if(fly_target == 0x11){
-                        fly_to_point(1.75, 1.25, 1.0, 4);
-                    }else if (fly_target == 0x12){
-                        fly_to_point(1.75, 1.75, 1.0, 4);
-                    }
+                    fly_to_point(0, -0.25, 1.0, 1);
                 break;
                 case 2:
-                    fly_to_point(1.75, -0.1, 1.4, 1);
+                    fly_to_point(2.0, -0.25, 1.0, 1);
                 break;
                 case 3:
-                    fly_to_point(3.5,-0.1, 1.4, 1);
+                    if(fly_target == 0x10){
+                        fly_to_point(2.0, 0.75, 1.0, 4);
+                    }else if(fly_target == 0x11){
+                        fly_to_point(2.0, 1.25, 1.0, 4);
+                    }else if (fly_target == 0x12){
+                        fly_to_point(2.0, 1.75, 1.0, 4);
+                    }
                 break;
                 case 4:
+                    fly_to_point(2.0, -0.25, 1.4, 1);
+                break;
+                case 5:
+                    fly_to_point(3.5,-0.25, 1.4, 1);
+                break;
+                case 6:
                     end_fly_task();
                 break;  
                 }
@@ -524,24 +549,27 @@ void run_fly_task_2024_2()
                 switch (fly_task_state)
                 {
                 case 0:
-                    fly_to_point(1.75, -0.1, 1.4, 1);
+                    fly_to_point(0, -0.25, 1.4, 1);
                 break;
                 case 1:
-                    if(fly_target == 0x0D){
-                        fly_to_point(1.75, 0.75, 1.4, 4);
-                    }else if(fly_target == 0x0E){
-                        fly_to_point(1.75, 1.25, 1.4, 4);
-                    }else if (fly_target == 0x0F){
-                        fly_to_point(1.75, 1.75, 1.4, 4);
-                    }
+                    fly_to_point(2 , -0.25, 1.4, 1);
                 break;
                 case 2:
-                    fly_to_point(1.75, -0.1, 1.4, 1);
+                    if(fly_target == 0x0D){
+                        fly_to_point(2, 0.75, 1.4, 4);
+                    }else if(fly_target == 0x0E){
+                        fly_to_point(2, 1.25, 1.4, 4);
+                    }else if (fly_target == 0x0F){
+                        fly_to_point(2, 1.75, 1.4, 4);
+                    }
                 break;
                 case 3:
-                    fly_to_point(3.5,-0.1, 1.4, 1);
+                    fly_to_point(2, -0.25, 1.4, 1);
                 break;
                 case 4:
+                    fly_to_point(3.5,-0.25, 1.4, 1);
+                break;
+                case 5:
                     end_fly_task();
                 break;  
                 }
@@ -555,12 +583,18 @@ void run_fly_task_2024_2()
                 switch (fly_task_state)
                 {
                 case 0:
-                    fly_to_point(3.5, -0.1, 1.0, 1);
+                    fly_to_point(0, 0, 1.0, 1);
                 break;
                 case 1:
-                    change_yaw(1);
+                    fly_to_point(1.75, -0.25, 1.0, 1);
                 break;
                 case 2:
+                    change_yaw(1);
+                break;
+                case 3:
+                    fly_to_point(3.5, -0.25, 1.0, 1);
+                break;
+                case 4:
                     if(fly_target == 0x16){
                         fly_to_point(3.5, 0.75, 1.0, 4);
                     }else if(fly_target == 0x17){
@@ -569,10 +603,10 @@ void run_fly_task_2024_2()
                         fly_to_point(3.5, 1.75, 1.0, 4);
                     }
                 break;
-                case 3:
+                case 5:
                     fly_to_point(3.5, 2.5, 1.0, 1);
                 break;
-                case 4:
+                case 6:
                     end_fly_task();
                 break;  
                 }
@@ -581,12 +615,18 @@ void run_fly_task_2024_2()
                 switch (fly_task_state)
                 {
                 case 0:
-                    fly_to_point(3.5, -0.1, 1.4, 1);
+                    fly_to_point(0, -0.25, 1.4, 1);
                 break;
                 case 1:
-                    change_yaw(1);
+                    fly_to_point(1.75, -0.25, 1.4, 1);
                 break;
                 case 2:
+                    change_yaw(1);
+                break;
+                case 3:
+                    fly_to_point(3.5, -0.25, 1.4, 1);
+                break;
+                case 4:
                     if(fly_target == 0x13){
                         fly_to_point(3.5, 0.75, 1.4, 4);
                     }else if(fly_target == 0x14){
@@ -595,10 +635,7 @@ void run_fly_task_2024_2()
                         fly_to_point(3.5, 1.75, 1.4, 4);
                     }
                 break;
-                case 3:
-                    fly_to_point(3.5, 2.5, 1.4, 1);
-                break;
-                case 4:
+                case 5:
                     end_fly_task();
                 break;  
                 }
