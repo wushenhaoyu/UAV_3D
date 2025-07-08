@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-    <node pkg="tutorial_all" type="new" name="task_node" output="screen">
+    <node pkg="tutorial_all" type="mine" name="task_node" output="screen">
     </node>
     <node pkg="tutorial_serial" type="serial_node.py" name="serial_node" output="screen">
     </node>

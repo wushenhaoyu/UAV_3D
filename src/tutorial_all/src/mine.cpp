@@ -27,6 +27,13 @@
 #define END_Y 0
 #define END_Z 0.5
 
+#define X_POS_P 0
+#define X_POS_D 0
+#define Y_POS_P 0
+#define Y_POS_D 0
+
+#define MAX_VELOCITY 0.4
+
 /*#define END_X 0
 #define END_Y 0
 #define END_Z 1.4*/
@@ -193,6 +200,39 @@ void set_velocity_yz_mode(){
     setpoint_raw.velocity.y = 0; 
 }
 
+float limit_velocity(float velocity)
+{
+    if(velocity > MAX_VELOCITY)
+    {
+        velocity = MAX_VELOCITY;
+    }else if(velocity < -MAX_VELOCITY)
+    {
+        velocity = -MAX_VELOCITY;
+    }
+    return velocity;
+}
+
+
+float error_x;
+float error_y;
+float last_error_x;
+float last_error_y;
+float distance_threshold;
+void pld_cal_xy()
+{
+    static float last_error_distance = 0;
+    if(error_x < distance_threshold && error_x < distance_threshold)
+    {
+        error_x = 0;
+    }
+    if(error_y < distance_threshold && error_y < distance_threshold)
+    {
+        error_y = 0;
+    }
+
+    setpoint_raw.velocity.x = limit_velocity(error_x * X_POS_P + (error_x - last_error_x) * X_POS_D);
+    setpoint_raw.velocity.y = limit_velocity(error_y * Y_POS_P + (error_y - last_error_y) * Y_POS_D);
+}
 
 /*
  * @brief : 转化对应 yaw，0 为起飞前方（+X），1 为后方（-X），2 为左方（+Y），3 为右方（-Y）
@@ -301,7 +341,7 @@ void run_fly_task2() {
 
 void test(){
         switch (fly_task_state) {
-        case 0: set_xy_velocity(0.15 , 0 , 3 );break;
+        case 0: set_xy_velocity(0.5 , 0 , 3 );break;
         case 1: set_xy_velocity(0 , 0 , 3 );break;
         case 2: end_fly_task();break;
         default: break;

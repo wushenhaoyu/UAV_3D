@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-    <node pkg="tutorial_all" type="new" name="task_node" output="screen">
+    <node pkg="tutorial_all" type="mine" name="task_node" output="screen">
     </node>
     <include file="$(find tutorial_basic)/launch/mavros.launch" />
     <include file="$(find tutorial_navigation)/launch/mid360.launch" />
