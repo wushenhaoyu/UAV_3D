@@ -12,14 +12,15 @@ from tf.transformations import euler_from_quaternion
 from tutorial_vision.msg import StringStamped  # 导入二维码消息类型
 from std_msgs.msg import UInt8, Int32
 from std_msgs.msg import Bool
+from tutorial_serial.msg import SerialData
 class IMUSerialNode:
     def __init__(self):
         rospy.init_node('serial_node', log_level=rospy.INFO)
         self.serial_port = serial.Serial('/dev/ttyserial', 9600, timeout=1)
-        try:
-            self.serial_port = serial.Serial('/dev/ttyserial', 9600, timeout=1)
-        except Exception as e:
-            rospy.logerr("Failed to open serial port")
+        #try:
+        #    self.serial_port = serial.Serial('/dev/ttyserial', 9600, timeout=1)
+        #except Exception as e:
+        #    rospy.logerr("Failed to open serial port")
         self.buffer = bytearray()
         self.receiving = False
         self.length = 0
@@ -45,12 +46,25 @@ class IMUSerialNode:
         self.fly_task_sub = rospy.Subscriber("fly_task", Int32, self.fly_task_callback)
         self.yaw_symbol_sub = rospy.Subscriber("yaw_symbol", Int32, self.yaw_symbol_callback)
         self.true_pos_sub = rospy.Subscriber("true_position", PoseStamped, self.true_pos_callback)
+        self.serial_ctrl_sub = rospy.Subscriber("serial_ctrl", SerialData, self.serial_ctrl_callback)
         self.camera_en_sub   = rospy.Subscriber("camera_en", Bool, self.camera_en_callback)
         self.camera_en  = False
 
         # TF2 相关
         self.tf_broadcaster = StaticTransformBroadcaster()
         rospy.Timer(rospy.Duration(0.001), self.read_serial)
+
+    def serial_ctrl_callback(self, data):
+        self.send_packet(data.func,data.data)
+    def send_packet(self, func , data):
+        packet = bytearray()
+        packet.append(0xAA)
+        packet.append(func)
+        packet.append(0x01)
+        packet.append(data)
+        packet.append(0xAF)
+        rospy.loginfo("Sending packet: %s", ' '.join(format(byte, '02x') for byte in packet))
+        self.serial_port.write(packet)
 
     def camera_en_callback(self,data):
         self.camera_en = data.data
