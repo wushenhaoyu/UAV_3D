@@ -41,6 +41,43 @@ def detect_qr_code():
     cap.release()  # 释放摄像头资源
     cv2.destroyAllWindows()  # 关闭所有窗口
 
+def detect_circle():
+    cap = cv2.VideoCapture(0)  # 打开摄像头，0表示默认摄像头
+    ret, frame = cap.read()  # 读取一帧图像
+    if not ret:
+        print("Failed to grab frame")
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (3, 3), 2)
+    circles = cv2.HoughCircles(
+    gray,
+    cv2.HOUGH_GRADIENT,
+    dp=1.2,
+    minDist=50,
+    param1=40,
+    param2=80,
+    minRadius=0,
+    maxRadius=500)
+    out_img = frame.copy()
+    circle_list = []
+    if circles is not None:
+        circles = np.round(circles[0, :]).astype(int)
+        for (x, y, r) in circles:
+            cv2.circle(out_img, (x, y), r, (0, 255, 0), 6)
+            cv2.circle(out_img, (x, y), 2, (0, 0, 255), -1)  # 圓心
+            circle_list.append((int(x), int(y), int(r)))
+    
+    cv2.imshow("a", out_img)
+    cv2.waitKey()
+    cv2.destroyAllWindows()
+        
+
+def detect_trangle():
+    cap = cv2.VideoCapture(0)
+    _, frame = cap.read()
+    
+
+
 
 if __name__ == '__main__':
-    detect_qr_code()
+    # detect_qr_code()
+    detect_circle()

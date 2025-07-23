@@ -10,7 +10,7 @@ from cv_bridge import CvBridge, CvBridgeError
 from tutorial_vision.msg import CircleInfo, CircleDetectResult
 
 
-def image_cb(msg, param, bridge, pub, img_pub):
+def image_cb (msg, param, bridge, pub, img_pub):
     try:
         cv_image = bridge.imgmsg_to_cv2(msg, "bgr8")
         gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)

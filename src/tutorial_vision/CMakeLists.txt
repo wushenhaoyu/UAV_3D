@@ -57,6 +57,7 @@ add_message_files(
   CircleInfo.msg
   CircleDetectResult.msg
   StringStamped.msg
+  ObjectError.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -169,10 +170,10 @@ target_link_libraries(yolo_detect_node ${catkin_LIBRARIES})
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-# catkin_install_python(PROGRAMS
-#   scripts/my_python_script
-#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+catkin_install_python(PROGRAMS
+  scripts/rect_detector.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html

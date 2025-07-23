@@ -414,7 +414,7 @@ void run_fly_task2() {
 
 void test(){
         switch (fly_task_state) {
-        case 0: set_xy_velocity(0.5 , 0 , 3 );break;
+        case 0: set_xy_velocity(0.4 , 0 , 3 );break;
         case 1: set_xy_velocity(0 , 0 , 3 );break;
         case 2: end_fly_task();break;
         default: break;
