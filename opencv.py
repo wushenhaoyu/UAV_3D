@@ -34,7 +34,7 @@ def detect_qr_code():
             for j in range(0, n):
                 cv2.line(cropped_frame, hull[j], hull[(j + 1) % n], (255, 0, 0), 3)
 
-        cv2.imshow("QR Code Detection", cropped_frame)  # 显示裁剪后的图像
+        cv2.imshow("QR Code Detection", frame)  # 显示裁剪后的图像
         if cv2.waitKey(1) & 0xFF == ord('q'):  # 按下q键退出
             break
 
@@ -80,4 +80,4 @@ def detect_trangle():
 
 if __name__ == '__main__':
     # detect_qr_code()
-    detect_circle()
+    detect_qr_code()

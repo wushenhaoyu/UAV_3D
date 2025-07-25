@@ -112,7 +112,7 @@ class IMUSerialNode:
         self.yaw_symbol = data.data
         rospy.logerr("yaw_symbol: %d", self.yaw_symbol )
 
-    def qr_callback(self, msg):
+    """def qr_callback(self, msg):
         try:
             if(msg.data):
                 if self.fly_task == 1:
@@ -161,7 +161,7 @@ class IMUSerialNode:
                     self.serial_port.write(packet) 
 
         except Exception as e:
-            rospy.logerr("send qr failed: %s", str(e))
+            rospy.logerr("send qr failed: %s", str(e))"""
 
     def true_pos_callback(self, msg):
         self.count = self.count + 1
@@ -185,89 +185,8 @@ class IMUSerialNode:
         self.yaw = yaw
 
         
-        packet = bytearray()
-        packet.append(0xAA)  # 帧头
-        packet.append(0x03)  # 功能码（自定义）
-        packet.append(0x08)
+    
 
-# 将 self.x 和 self.y 各自乘以 100 并转为整数
-        x_int = int(self.x * 100)
-        y_int = int(self.y * 100)
-       # rospy.loginfo("x_int: %d, y_int: %d", x_int, y_int)
-# 使用 struct 将整数打包为字节数据
-        packet.extend(struct.pack('>ii', x_int, y_int))  # 修改这里
-        packet.append(0xAF)
-
-        
-
-        #rospy.loginfo("Sending Location packet: %s", ' '.join(format(byte, '02x') for byte in packet))
-        self.serial_port.write(packet) 
-        self.count = 0
-            #rospy.logerr("send location failed: %s", str(e))
-
-    def judge_location(self):
-        if(self.x > -0.5 and self.x < 1.0): #在1～6
-            if(self.z > 1.1 and self.z <1.6):
-                if(self.y >0.5 and self.y < 1.0):
-                    return 0x03
-                elif(self.y >1.0 and self.y < 1.5):
-                    return 0x02
-                elif(self.y >1.5 and self.y < 2.0):
-                    return 0x01
-            elif(self.z > 0.8 and self.z <1.1):
-                if(self.y >0.5 and self.y < 1.0):
-                    return 0x06
-                elif(self.y >1.0 and self.y < 1.5):
-                    return 0x05
-                elif(self.y >1.5 and self.y < 2.0):
-                    return 0x04   
-        elif(self.x >1.0 and self.x < 2.5): #在7～18
-            if(self.yaw_symbol == 0 ):#在13～18
-                if(self.z > 1.1 and self.z <1.6):
-                    if(self.y >0.5 and self.y < 1.0):
-                        return 0x0F
-                    elif(self.y >1.0 and self.y < 1.5):
-                        return 0x0E
-                    elif(self.y >1.5 and self.y < 2.0):
-                        return 0x0D
-                elif(self.z > 0.8 and self.z <1.1):
-                    if(self.y >0.5 and self.y < 1.0):
-                        return 0x12
-                    elif(self.y >1.0 and self.y < 1.5):
-                        return 0x11
-                    elif(self.y >1.5 and self.y < 2.0):
-                        return 0x10  
-            elif(self.yaw_symbol == 1):#在7～12
-                if(self.z > 1.1 and self.z <1.6):
-                    if(self.y >0.5 and self.y < 1.0):
-                        return 0x07
-                    elif(self.y >1.0 and self.y < 1.5):
-                        return 0x08
-                    elif(self.y >1.5 and self.y < 2.0):
-                        return 0x09
-                elif(self.z > 0.8 and self.z <1.1):
-                    if(self.y >0.5 and self.y < 1.0):
-                        return 0x0A
-                    elif(self.y >1.0 and self.y < 1.5):
-                        return 0x0B
-                    elif(self.y >1.5 and self.y < 2.0):
-                        return 0x0C 
-        elif(self.x >2.5 and self.x < 4.0): #在19～24
-            if(self.z > 1.1 and self.z <1.6):
-                if(self.y >0.5 and self.y < 1.0):
-                    return 0x13
-                elif(self.y >1.0 and self.y < 1.5):
-                    return 0x14
-                elif(self.y >1.5 and self.y < 2.0):
-                    return 0x15
-            elif(self.z > 0.8 and self.z <1.1):
-                if(self.y >0.5 and self.y < 1.0):
-                    return 0x16
-                elif(self.y >1.0 and self.y < 1.5):
-                    return 0x17
-                elif(self.y >1.5 and self.y < 2.0):
-                    return 0x18 
-        return 0x00
 
 
 if __name__ == '__main__':
