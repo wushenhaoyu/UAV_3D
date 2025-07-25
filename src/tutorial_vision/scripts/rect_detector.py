@@ -59,6 +59,7 @@ class RectDetectorNode(object):
             cx = np.mean(biggest[:, 0, 0])
             cy = np.mean(biggest[:, 0, 1])
             h, w = frame.shape[:2]
+            self.current_error.type = 1 #1 为 正方形
             self.current_error.x = cx - w / 2.0
             self.current_error.y = cy - h / 2.0
             self.pub.publish(self.current_error)
