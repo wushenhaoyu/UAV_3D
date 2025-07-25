@@ -28,12 +28,13 @@
 #define END_Y 0
 #define END_Z 0.5
 
-#define X_POS_P 0
-#define X_POS_D 0
-#define Y_POS_P 0
-#define Y_POS_D 0
+#define X_POS_P 0.5
+#define X_POS_D 0.0001
+#define Y_POS_P 0.5
+#define Y_POS_D 0.0001
 
 #define MAX_VELOCITY 0.25
+#define PIXEL_TO_METER 0.0014
 
 /*#define END_X 0
 #define END_Y 0
@@ -73,7 +74,7 @@ ros::Publisher yaw_symbol_pub;
 ros::Publisher local_pos_pub;
 ros::Publisher camera_en_pub ;
 ros::Publisher serial_pub;
-
+void object_track_xy(int type);
 void vision_pos_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
     if (!flag_vision_ready) {
@@ -147,6 +148,8 @@ void object_error_cb(const tutorial_vision::ObjectError::ConstPtr& msg)
 {
     object_error = *msg;   // 直接拷贝整条消息
     object_error_time = ros::Time::now();
+    /*ROS_INFO("""Object Error: type=%d, x=%.5f, y=%.5f", 
+             object_error.type, object_error.x * PIXEL_TO_METER, object_error.y * PIXEL_TO_METER);*/
 }
  
 double getAngleBetweenPoints(double* out_err = nullptr) {
@@ -177,21 +180,21 @@ double getHeightBetweenPoints(double *out_err_z = nullptr) {
     return fabs(err_z);
 }
 
-void camera_turn_forward(){ //一号舵机
-    tutorial_serial::SerialData serial_msg;
-    serial_msg.func = 4;
-    serial_msg.data = 1;
-    serial_pub.publish(serial_msg);
-}
-
-void camera_turn_bottom(){
+void camera_turn_forward(){ 
     tutorial_serial::SerialData serial_msg;
     serial_msg.func = 4;
     serial_msg.data = 0;
     serial_pub.publish(serial_msg);
 }
 
-void servo1_turn_forward(){ //二号舵机
+void camera_turn_bottom(){
+    tutorial_serial::SerialData serial_msg;
+    serial_msg.func = 4;
+    serial_msg.data = 1;
+    serial_pub.publish(serial_msg);
+}
+
+void servo1_turn_forward(){ //一号舵机 1是投放 2是关
     tutorial_serial::SerialData serial_msg;
     serial_msg.func = 5;
     serial_msg.data = 1;
@@ -205,7 +208,7 @@ void servo1_turn_bottom(){
     serial_pub.publish(serial_msg);
 }
 
-void servo2_turn_off(){ //三号舵机,关闭仓门
+void servo2_turn_off(){ //二号舵机 1是投放 2是关
     tutorial_serial::SerialData serial_msg;
     serial_msg.func = 6;
     serial_msg.data = 0;
@@ -222,26 +225,26 @@ void servo2_turn_on(){ //打开仓门投放
 void motors_turn_on(){//下放物品
     tutorial_serial::SerialData serial_msg;
     serial_msg.func = 7;
-    serial_msg.data = 1;
+    serial_msg.data = 0;
     serial_pub.publish(serial_msg);;
 }
 
 void motors_turn_off(){ //上拉物品
     tutorial_serial::SerialData serial_msg;
     serial_msg.func = 7;
-    serial_msg.data = 0;
+    serial_msg.data = 1;
     serial_pub.publish(serial_msg);
 }
 
 
-void laser_turn_forward(){//下放物品
+void laser_turn_forward(){//开激光
     tutorial_serial::SerialData serial_msg;
     serial_msg.func = 8;
     serial_msg.data = 1;
     serial_pub.publish(serial_msg);;
 }
 
-void laser_turn_bottom(){ //上拉物品
+void laser_turn_bottom(){ //关激光
     tutorial_serial::SerialData serial_msg;
     serial_msg.func = 8;
     serial_msg.data = 0;
@@ -298,15 +301,15 @@ float error_x;
 float error_y;
 float last_error_x;
 float last_error_y;
-float distance_threshold = 0.08;
+float distance_threshold = 0.05;
 void pld_cal_xy()
 {
     static float last_error_distance = 0;
-    if(error_x < distance_threshold && error_x < distance_threshold)
+    if(error_x < distance_threshold && error_x > -1 * distance_threshold)
     {
         error_x = 0;
     }
-    if(error_y < distance_threshold && error_y < distance_threshold)
+    if(error_y < distance_threshold && error_y > -1 *  distance_threshold)
     {
         error_y = 0;
     }
@@ -316,32 +319,39 @@ void pld_cal_xy()
 
     setpoint_raw.velocity.x = limit_velocity(error_x * X_POS_P + (error_x - last_error_x) * X_POS_D);
     setpoint_raw.velocity.y = limit_velocity(error_y * Y_POS_P + (error_y - last_error_y) * Y_POS_D);
+    //ROS_INFO("Velocity: x=%.5f, y=%.5f", error_x * X_POS_P + (error_x - last_error_x) * X_POS_D , error_y * Y_POS_P + (error_y - last_error_y) * Y_POS_D);
 }
 
 bool object_position_init_xy_flag = false;
+bool set_position_flag = false;
 float init_position_x_object_position_xy = 0;
 float init_position_y_object_position_xy = 0;
 void object_track_xy(int type)
 {
     if(type == object_error.type && (ros::Time::now() - object_error_time).toSec() < 0.5){
-        if(object_position_init_flag == false)
+        if(object_position_init_xy_flag  == false)
         {
             init_position_x_object_position_xy = local_pos.pose.pose.position.x;
             init_position_y_object_position_xy = local_pos.pose.pose.position.y;
             object_position_init_xy_flag = true;
         }
-        error_x = object_error.x;
-        error_y = object_error.y;
+        error_x = object_error.x * PIXEL_TO_METER;
+        error_y = object_error.y * PIXEL_TO_METER;
         set_velocity_xy_mode();
         pld_cal_xy();
     }else if((ros::Time::now() - object_error_time).toSec() > 2){
         fly_task_state += 1;
+        object_position_init_xy_flag = false;
+        set_position_flag = false;
         set_position_mode();
     }
     else{
         set_position_mode();
-        setpoint_raw.position.x = local_pos.pose.pose.position.x;
-        setpoint_raw.position.y = local_pos.pose.pose.position.y;
+        if(set_position_flag == false){
+            setpoint_raw.position.x = local_pos.pose.pose.position.x;
+            setpoint_raw.position.y = local_pos.pose.pose.position.y;
+            set_position_flag  = true;
+        }
     }
 
 }
@@ -545,11 +555,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 3:
-                if(fly_task == 1){
-                    run_fly_task_2024_1();
-                }else if(fly_task == 2){
-                    run_fly_task_2024_2();
-                }
+                    run_fly_task1();
                 break;
             case 100:
                 set_position_mode();

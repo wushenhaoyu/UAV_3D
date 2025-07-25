@@ -42,7 +42,7 @@ class IMUSerialNode:
         self.count = 0
 
         # 订阅二维码检测结果
-        self.qr_sub = rospy.Subscriber("qr_detect_result", StringStamped, self.qr_callback)
+        #self.qr_sub = rospy.Subscriber("qr_detect_result", StringStamped, self.qr_callback)
         self.fly_task_sub = rospy.Subscriber("fly_task", Int32, self.fly_task_callback)
         self.yaw_symbol_sub = rospy.Subscriber("yaw_symbol", Int32, self.yaw_symbol_callback)
         self.true_pos_sub = rospy.Subscriber("true_position", PoseStamped, self.true_pos_callback)
@@ -54,6 +54,10 @@ class IMUSerialNode:
         self.tf_broadcaster = StaticTransformBroadcaster()
         rospy.Timer(rospy.Duration(0.001), self.read_serial)
 
+        self.send_packet(0x0A, 0x01) #蜂鸣
+        self.send_packet(0x04, 0x01) #摄像头下看
+        self.send_packet(0x0A, 0x01) #打激光
+
     def serial_ctrl_callback(self, data):
         self.send_packet(data.func,data.data)
     def send_packet(self, func , data):
@@ -64,7 +68,10 @@ class IMUSerialNode:
         packet.append(data)
         packet.append(0xAF)
         rospy.loginfo("Sending packet: %s", ' '.join(format(byte, '02x') for byte in packet))
-        self.serial_port.write(packet)
+        try:    
+            self.serial_port.write(packet)
+        except Exception as e:
+            rospy.logerr("Failed to write to serial port: %s", str(e))
 
     def camera_en_callback(self,data):
         self.camera_en = data.data
