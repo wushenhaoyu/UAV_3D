@@ -21,7 +21,7 @@
 #include <tutorial_serial/SerialData.h>
 #include <cmath>
 #include <std_msgs/Bool.h>
-
+#include <tutorial_vision/ObjectError.h> 
 
 #define ALTITUDE  1.4
 #define END_X 0
@@ -33,7 +33,7 @@
 #define Y_POS_P 0
 #define Y_POS_D 0
 
-#define MAX_VELOCITY 0.4
+#define MAX_VELOCITY 0.25
 
 /*#define END_X 0
 #define END_Y 0
@@ -139,6 +139,14 @@ void state_cb(const mavros_msgs::State::ConstPtr& msg) {
 void fly_target_cb(const std_msgs::UInt8::ConstPtr& msg) {
     ROS_INFO("\033[34mRecieve fly_target: %d\033[0m", msg->data);
     fly_target = msg->data;
+}
+
+tutorial_vision::ObjectError object_error;
+ros::Time object_error_time;
+void object_error_cb(const tutorial_vision::ObjectError::ConstPtr& msg)
+{
+    object_error = *msg;   // 直接拷贝整条消息
+    object_error_time = ros::Time::now();
 }
  
 double getAngleBetweenPoints(double* out_err = nullptr) {
@@ -262,8 +270,8 @@ void set_position_mode(){
 void set_velocity_xy_mode(){
     fly_ctrl_state = 1;
     setpoint_raw.type_mask = 1 + 2 + 32 + 64 + 128 + 256 + 512;
-    setpoint_raw.velocity.x = 0.5; 
-    setpoint_raw.velocity.y = 0.5; 
+    setpoint_raw.velocity.x = 0; 
+    setpoint_raw.velocity.y = 0; 
 }
 
 void set_velocity_yz_mode(){
@@ -290,7 +298,7 @@ float error_x;
 float error_y;
 float last_error_x;
 float last_error_y;
-float distance_threshold;
+float distance_threshold = 0.08;
 void pld_cal_xy()
 {
     static float last_error_distance = 0;
@@ -303,8 +311,39 @@ void pld_cal_xy()
         error_y = 0;
     }
 
+    last_error_x = error_x;
+    last_error_y = error_y;
+
     setpoint_raw.velocity.x = limit_velocity(error_x * X_POS_P + (error_x - last_error_x) * X_POS_D);
     setpoint_raw.velocity.y = limit_velocity(error_y * Y_POS_P + (error_y - last_error_y) * Y_POS_D);
+}
+
+bool object_position_init_xy_flag = false;
+float init_position_x_object_position_xy = 0;
+float init_position_y_object_position_xy = 0;
+void object_track_xy(int type)
+{
+    if(type == object_error.type && (ros::Time::now() - object_error_time).toSec() < 0.5){
+        if(object_position_init_flag == false)
+        {
+            init_position_x_object_position_xy = local_pos.pose.pose.position.x;
+            init_position_y_object_position_xy = local_pos.pose.pose.position.y;
+            object_position_init_xy_flag = true;
+        }
+        error_x = object_error.x;
+        error_y = object_error.y;
+        set_velocity_xy_mode();
+        pld_cal_xy();
+    }else if((ros::Time::now() - object_error_time).toSec() > 2){
+        fly_task_state += 1;
+        set_position_mode();
+    }
+    else{
+        set_position_mode();
+        setpoint_raw.position.x = local_pos.pose.pose.position.x;
+        setpoint_raw.position.y = local_pos.pose.pose.position.y;
+    }
+
 }
 
 /*
@@ -434,6 +473,7 @@ int main(int argc, char **argv) {
     yaw_symbol_pub = nh.advertise<std_msgs::Int32>("yaw_symbol", 1);
     true_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("true_position", 10);
 
+    ros::Subscriber object_error_sub = nh.subscribe("/object_error",10,object_error_cb);
     ros::Subscriber state_sub = nh.subscribe("mavros/state", 10, state_cb);
     ros::Subscriber odom_sub = nh.subscribe("/mavros/local_position/odom", 10, local_pos_cb);
     ros::Subscriber fly_target_sub = nh.subscribe("fly_target", 10, fly_target_cb);
