@@ -54,9 +54,9 @@ class IMUSerialNode:
         self.tf_broadcaster = StaticTransformBroadcaster()
         rospy.Timer(rospy.Duration(0.001), self.read_serial)
 
-        self.send_packet(0x0A, 0x01) #蜂鸣
         self.send_packet(0x04, 0x01) #摄像头下看
-        self.send_packet(0x0A, 0x01) #打激光
+        self.send_packet(0x08, 0x01) #打激光
+        self.send_packet(0x0A, 0x01) #蜂鸣
 
     def serial_ctrl_callback(self, data):
         self.send_packet(data.func,data.data)

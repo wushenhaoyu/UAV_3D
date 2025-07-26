@@ -569,8 +569,8 @@ int main(int argc, char **argv) {
                     setpoint_raw.position.z = init_position_z_take_off + ALTITUDE;
                 }
                 break;
-	    case 101:
-                if(getLengthBetweenPoints() < 0.1 && getHeightBetweenPoints() < 0.1   && ros::Time::now() - last_request > ros::Duration(8.0))
+	        case 101:
+                if(getLengthBetweenPoints() < 0.1 && getHeightBetweenPoints() < 0.1   && ros::Time::now() - last_request > ros::Duration(4.0))
                 {
                     fsm_state = 102;
                     last_request = ros::Time::now();
@@ -581,6 +581,17 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 102:
+                if(getLengthBetweenPoints() < 0.1 && fabs(init_position_z_take_off - local_pos.pose.pose.position.z) < 0.05 )
+                {
+                    fsm_state = 103;
+                    last_request = ros::Time::now();
+                }else{
+                    setpoint_raw.position.x = init_position_x_take_off + END_X;
+                    setpoint_raw.position.y = init_position_y_take_off + END_Y;
+                    setpoint_raw.position.z = init_position_z_take_off - 0.15 ;
+                }
+                break;
+            case 103:
                 if(current_state.mode == "AUTO.LAND"){
                     fsm_state = -1; 
                 }else{
