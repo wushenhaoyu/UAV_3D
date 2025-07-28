@@ -1,8 +1,5 @@
 # MID360
-`cd ros_libraries_ws`
-`cd src`
-`cd livox_ros_driver2`
-`./build.sh ROS1`
+第一次编译 `sudo bash src/livox_ros_driver2/build.sh ROS1`</br>
 
 注意以下用户名均为`flmg`，请根据需要修改 </br>
 

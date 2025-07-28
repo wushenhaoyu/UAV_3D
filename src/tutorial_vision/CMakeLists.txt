@@ -173,6 +173,8 @@ target_link_libraries(yolo_detect_node ${catkin_LIBRARIES})
 ## in contrast to setup.py, you can choose the destination
 catkin_install_python(PROGRAMS
   scripts/rect_detector.py
+  scripts/circ_detector.py
+  scripts/tria_detector.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
