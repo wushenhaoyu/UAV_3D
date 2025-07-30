@@ -26,7 +26,7 @@
 #define ALTITUDE  1.1
 #define END_X 0.5
 #define END_Y 0.5
-#define END_Z 0.5
+#define END_Z 0.7
 
 #define X_POS_P 0.5
 #define X_POS_D 0.0001
@@ -66,7 +66,7 @@ bool flag_vision_ready = false;
 int vision_ready_count = 0;
 
 nav_msgs::Odometry local_pos;
-mavros_msgs::PositionTarget setpoint_raw;
+geometry_msgs::PoseStamped pose;
 bool point_arrive_flag = false;
 
 ros::Publisher true_pos_pub;
@@ -164,15 +164,6 @@ void waypoint_request_cb(const tutorial_serial::WayPoint::ConstPtr& msg) {
     ROS_INFO("Waypoint requested: (%d, %d)", waypoint.x, waypoint.y);
 }
 
-tutorial_vision::ObjectError object_error;
-ros::Time object_error_time;
-void object_error_cb(const tutorial_vision::ObjectError::ConstPtr& msg)
-{
-    object_error = *msg;   // 直接拷贝整条消息
-    object_error_time = ros::Time::now();
-    /*ROS_INFO("""Object Error: type=%d, x=%.5f, y=%.5f", 
-             object_error.type, object_error.x * PIXEL_TO_METER, object_error.y * PIXEL_TO_METER);*/
-}
  
 double getAngleBetweenPoints(double* out_err = nullptr) {
     double diff = yaw_target - yaw_correct;
@@ -189,15 +180,15 @@ double getAngleBetweenPoints(double* out_err = nullptr) {
 
 
 double getLengthBetweenPoints(double *out_err_x = nullptr, double *out_err_y = nullptr) {
-    double err_x = setpoint_raw.position.x - local_pos.pose.pose.position.x;
-    double err_y = setpoint_raw.position.y - local_pos.pose.pose.position.y;
+    double err_x = pose.pose.position.x - local_pos.pose.pose.position.x;
+    double err_y = pose.pose.position.y - local_pos.pose.pose.position.y;
     if (out_err_x) *out_err_x = err_x;
     if (out_err_y) *out_err_y = err_y;
     return sqrt(err_x * err_x + err_y * err_y);
 }
 
 double getHeightBetweenPoints(double *out_err_z = nullptr) {
-    double err_z = setpoint_raw.position.z - local_pos.pose.pose.position.z;
+    double err_z = pose.pose.position.z - local_pos.pose.pose.position.z;
     if (out_err_z) *out_err_z = err_z;
     return fabs(err_z);
 }
@@ -216,48 +207,6 @@ void camera_turn_bottom(){
     serial_msg.func = 4;
     serial_msg.data = 1;
     camera_pos = 1;
-    serial_pub.publish(serial_msg);
-}
-
-void servo1_turn_forward(){ //一号舵机 1是投放 2是关
-    tutorial_serial::SerialData serial_msg;
-    serial_msg.func = 5;
-    serial_msg.data = 1;
-    serial_pub.publish(serial_msg);
-}
-
-void servo1_turn_bottom(){
-    tutorial_serial::SerialData serial_msg;
-    serial_msg.func = 5;
-    serial_msg.data = 0;
-    serial_pub.publish(serial_msg);
-}
-
-void servo2_turn_off(){ //二号舵机 1是投放 2是关
-    tutorial_serial::SerialData serial_msg;
-    serial_msg.func = 6;
-    serial_msg.data = 0;
-    serial_pub.publish(serial_msg);
-}
-
-void servo2_turn_on(){ //打开仓门投放
-    tutorial_serial::SerialData serial_msg;
-    serial_msg.func = 6;
-    serial_msg.data = 1;
-    serial_pub.publish(serial_msg);
-}
-
-void motors_turn_on(){//下放物品
-    tutorial_serial::SerialData serial_msg;
-    serial_msg.func = 7;
-    serial_msg.data = 0;
-    serial_pub.publish(serial_msg);
-}
-
-void motors_turn_off(){ //上拉物品
-    tutorial_serial::SerialData serial_msg;
-    serial_msg.func = 7;
-    serial_msg.data = 1;
     serial_pub.publish(serial_msg);
 }
 
@@ -292,96 +241,10 @@ void camera_disable(){
     ROS_INFO("Camera disabled.");
 }
 
-void set_position_mode(){
-    fly_ctrl_state = 0;
-    setpoint_raw.type_mask = 8 + 16 + 32 + 64 + 128 + 256 + 2048 ;
-}
-
-void set_velocity_xy_mode(){
-    fly_ctrl_state = 1;
-    setpoint_raw.type_mask = 1 + 2 + 32 + 64 + 128 + 256 + 512;
-    setpoint_raw.velocity.x = 0; 
-    setpoint_raw.velocity.y = 0; 
-}
-
-void set_velocity_yz_mode(){
-    fly_ctrl_state = 2;
-    setpoint_raw.type_mask = 8 + 16 + 4 + 64 + 128 + 256 + 512;
-    setpoint_raw.velocity.z = 0; 
-    setpoint_raw.velocity.y = 0; 
-}
-
-float limit_velocity(float velocity)
-{
-    if(velocity > MAX_VELOCITY)
-    {
-        velocity = MAX_VELOCITY;
-    }else if(velocity < -MAX_VELOCITY)
-    {
-        velocity = -MAX_VELOCITY;
-    }
-    return velocity;
-}
 
 
-float error_x;
-float error_y;
-float last_error_x;
-float last_error_y;
-float distance_threshold = 0.05;
-void pld_cal_xy()
-{
-    static float last_error_distance = 0;
-    if(error_x < distance_threshold && error_x > -1 * distance_threshold)
-    {
-        error_x = 0;
-    }
-    if(error_y < distance_threshold && error_y > -1 *  distance_threshold)
-    {
-        error_y = 0;
-    }
 
-    last_error_x = error_x;
-    last_error_y = error_y;
 
-    setpoint_raw.velocity.x = limit_velocity(error_x * X_POS_P + (error_x - last_error_x) * X_POS_D);
-    setpoint_raw.velocity.y = limit_velocity(error_y * Y_POS_P + (error_y - last_error_y) * Y_POS_D);
-    //ROS_INFO("Velocity: x=%.5f, y=%.5f", error_x * X_POS_P + (error_x - last_error_x) * X_POS_D , error_y * Y_POS_P + (error_y - last_error_y) * Y_POS_D);
-}
-
-bool object_position_init_xy_flag = false;
-bool set_position_flag = false;
-float init_position_x_object_position_xy = 0;
-float init_position_y_object_position_xy = 0;
-void object_track_xy(int type)
-{
-    if(type == object_error.type && (ros::Time::now() - object_error_time).toSec() < 0.5){
-        if(object_position_init_xy_flag  == false)
-        {
-            init_position_x_object_position_xy = local_pos.pose.pose.position.x;
-            init_position_y_object_position_xy = local_pos.pose.pose.position.y;
-            object_position_init_xy_flag = true;
-        }
-        error_x = object_error.x * PIXEL_TO_METER;
-        error_y = object_error.y * PIXEL_TO_METER;
-        set_velocity_xy_mode();
-        pld_cal_xy();
-    }else if((ros::Time::now() - object_error_time).toSec() > 2){
-        fly_task_state += 1;
-        object_position_init_xy_flag = false;
-        set_position_flag = false;
-        set_position_mode();
-    }
-    else{
-        set_position_mode();
-        if(set_position_flag == false){
-            setpoint_raw.position.x = local_pos.pose.pose.position.x;
-            setpoint_raw.position.y = local_pos.pose.pose.position.y;
-            set_position_flag  = true;
-        }
-    }
-
-}
 
 /*
  * @brief : 转化对应 yaw，0 为起飞前方（+X），1 为后方（-X），2 为左方（+Y），3 为右方（-Y）
@@ -416,39 +279,44 @@ void change_yaw(int direction){
         ROS_INFO("\033[32mComplete a yaw change\033[0m");
     }else{
         yaw_target = trans_yaw(direction);
-	    double yaw_target_t = initial_yaw + yaw_target;
-        setpoint_raw.yaw = yaw_target_t;
+	double yaw_target_t = initial_yaw + yaw_target;
+        tf::Quaternion q = tf::createQuaternionFromRPY(0.0, 0.0, yaw_target_t);
+        tf::quaternionTFToMsg(q, pose.pose.orientation);
 //	ROS_INFO("yaw_eror:%f,yaw_target:%f,yaw_correct:%f\n",getAngleBetweenPoints(),yaw_target,yaw_correct);
     }
 
 }
 
 
-void set_xy_velocity(double x, double y , double t) {
-    if(fly_task_state != 1)
-    {
-        set_velocity_xy_mode();
-    }
-    setpoint_raw.velocity.x = x;
-    setpoint_raw.velocity.y = y;
-    if (ros::Time::now() - last_request > ros::Duration(t)) {
-        fly_task_state++;
-        last_request = ros::Time::now();
-    }
-}
+
 
 void end_fly_task() {
     fsm_state = 100;
 }
 
 void fly_to_point(double x, double y, double z, double stop_time) {
-    if(fly_task_state != 0)
-    {
-        set_position_mode();
+    pose.pose.position.x = init_position_x_take_off + x;
+    pose.pose.position.y = init_position_y_take_off + y;
+    pose.pose.position.z = init_position_z_take_off + z;
+    if (getLengthBetweenPoints() < 0.1 && getHeightBetweenPoints() < 0.1 && ros::Time::now() - last_request > ros::Duration(1.0)) {
+        if (!point_arrive_flag) {
+            point_arrive_flag = true;
+            last_request = ros::Time::now();
+            camera_enable();
+        } else if (ros::Time::now() - last_request > ros::Duration(stop_time)) {
+            point_arrive_flag = false;
+            last_request = ros::Time::now();
+            fly_task_state++;
+            camera_disable();
+            ROS_INFO("\033[32mComplete a fly task\033[0m");
+        }
     }
-    setpoint_raw.position.x = init_position_x_take_off + x;
-    setpoint_raw.position.y = init_position_y_take_off + y;
-    setpoint_raw.position.z = init_position_z_take_off + z;
+}
+
+void fly_to_point_speical(double x, double y, double z, double stop_time) {
+    pose.pose.position.x = init_position_x_take_off + x;
+    pose.pose.position.y = init_position_y_take_off + y;
+    pose.pose.position.z = init_position_z_take_off + z;
     if (getLengthBetweenPoints() < 0.1 && getHeightBetweenPoints() < 0.1 && ros::Time::now() - last_request > ros::Duration(1.0)) {
         if (!point_arrive_flag) {
             point_arrive_flag = true;
@@ -480,14 +348,18 @@ void run_fly_task()
 
     // 继续飞往当前目标点
     const auto& wp = waypoint_list[fly_task_state];
-    fly_to_point(wp.x, wp.y, ALTITUDE, 1.0);
+    fly_to_point_speical(wp.x * 0.5 , wp.y * 0.5, ALTITUDE, 1.0);
 }
 void test(){
         switch (fly_task_state) {
-        case 0: fly_to_point(1,0,ALTITUDE,4.0);break;
-        case 1: fly_to_point(1,1,ALTITUDE,4.0);break;
-        case 2: fly_to_point(0,1,ALTITUDE,4.0);break;
-        case 2: end_fly_task();break;
+        case 0: fly_to_point(0.5,0,ALTITUDE,2.0);break;
+        case 1: fly_to_point(1.0,0,ALTITUDE,2.0);break;
+        case 2: fly_to_point(1.0,0.5,ALTITUDE,2.0);break;
+        case 3: fly_to_point(1.0,1.0,ALTITUDE,2.0);break;
+        case 4: fly_to_point(0.5,1.0,ALTITUDE,2.0);break;
+        case 5: fly_to_point(0,1,ALTITUDE,2.0);break;
+        case 6: fly_to_point(0,0.5,ALTITUDE,2.0);break;
+        case 7: end_fly_task();break;
         default: break;
     }
 }
@@ -501,11 +373,10 @@ int main(int argc, char **argv) {
     ros::Publisher fly_task_pub = nh.advertise<std_msgs::Int32>("fly_task", 1);
     serial_pub = nh.advertise<tutorial_serial::SerialData>("serial_ctrl", 10);
     camera_en_pub = nh.advertise<std_msgs::Bool>("camera_en", 1);
-    local_pos_pub = nh.advertise<mavros_msgs::PositionTarget>("/mavros/setpoint_raw/local", 10);
+    local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 10);
     yaw_symbol_pub = nh.advertise<std_msgs::Int32>("yaw_symbol", 1);
     true_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("true_position", 10);
 
-    ros::Subscriber object_error_sub = nh.subscribe("/object_error",10,object_error_cb);
     ros::Subscriber state_sub = nh.subscribe("mavros/state", 10, state_cb);
     ros::Subscriber odom_sub = nh.subscribe("/mavros/local_position/odom", 10, local_pos_cb);
     ros::Subscriber vision_pose_sub = nh.subscribe("/mavros/vision_pose/pose", 10, vision_pos_cb);
@@ -520,18 +391,16 @@ int main(int argc, char **argv) {
     }
 
     for (int i = 100; ros::ok() && i > 0; --i) {
-        local_pos_pub.publish(setpoint_raw);
+        local_pos_pub.publish(pose);
         ros::spinOnce(); 
         rate.sleep();
     }
 
 
     last_request = ros::Time::now();
-    setpoint_raw.type_mask = 8 + 16 + 32 + 64 + 128 + 256 + 2048 ;
-	setpoint_raw.coordinate_frame = mavros_msgs::PositionTarget::FRAME_LOCAL_NED;
-    setpoint_raw.position.x = init_position_x_take_off + 0;
-    setpoint_raw.position.y = init_position_y_take_off + 0;
-    setpoint_raw.position.z = init_position_z_take_off + ALTITUDE;
+    pose.pose.position.x = init_position_x_take_off + 0;
+    pose.pose.position.y = init_position_y_take_off + 0;
+    pose.pose.position.z = init_position_z_take_off + ALTITUDE;
 
     while (ros::ok()) {
         /*if(fsm_state == 0)
@@ -572,24 +441,23 @@ int main(int argc, char **argv) {
                 ROS_INFO("\033[32mFly Task 2 starting!\033[0m");
                 }
                 } else {
-                    setpoint_raw.position.x = init_position_x_take_off + 0;
-                    setpoint_raw.position.y = init_position_y_take_off + 0;
-                    setpoint_raw.position.z = init_position_z_take_off + ALTITUDE;
+                    pose.pose.position.x = init_position_x_take_off + 0;
+                    pose.pose.position.y = init_position_y_take_off + 0;
+                    pose.pose.position.z = init_position_z_take_off + ALTITUDE;
                 }
                 break;
             case 3:
                     test();
                 break;
             case 100:
-                set_position_mode();
-                if(getLengthBetweenPoints() < 0.1 && getHeightBetweenPoints() < 0.1   && ros::Time::now() - last_request > ros::Duration(8.0))
+                if(getLengthBetweenPoints() < 0.1 && getHeightBetweenPoints() < 0.1   && ros::Time::now() - last_request > ros::Duration(4.0))
                 {
                     fsm_state = 101;
                     last_request = ros::Time::now();
                 }else{
-                    setpoint_raw.position.x = init_position_x_take_off + END_X;
-                    setpoint_raw.position.y = init_position_y_take_off + END_Y;
-                    setpoint_raw.position.z = init_position_z_take_off + ALTITUDE;
+                    pose.pose.position.x = init_position_x_take_off + END_X;
+                    pose.pose.position.y = init_position_y_take_off + END_Y;
+                    pose.pose.position.z = init_position_z_take_off + ALTITUDE;
                 }
                 break;
 	        case 101:
@@ -598,20 +466,20 @@ int main(int argc, char **argv) {
                     fsm_state = 102;
                     last_request = ros::Time::now();
                 }else{
-                    setpoint_raw.position.x = init_position_x_take_off + END_X;
-                    setpoint_raw.position.y = init_position_y_take_off + END_Y;
-                    setpoint_raw.position.z = init_position_z_take_off + END_Z;
+                    pose.pose.position.x = init_position_x_take_off + END_X;
+                    pose.pose.position.y = init_position_y_take_off + END_Y;
+                    pose.pose.position.z = init_position_z_take_off + END_Z;
                 }
                 break;
             case 102:
-                if(getLengthBetweenPoints() < 0.1 && fabs(init_position_z_take_off - local_pos.pose.pose.position.z) < 0.05 )
+                if(getLengthBetweenPoints() < 0.1 && fabs(init_position_z_take_off - local_pos.pose.pose.position.z) < 0.1 )
                 {
                     fsm_state = 103;
                     last_request = ros::Time::now();
                 }else{
-                    setpoint_raw.position.x = init_position_x_take_off + 0;
-                    setpoint_raw.position.y = init_position_y_take_off + 0;
-                    setpoint_raw.position.z = init_position_z_take_off - 0.15 ;
+                    pose.pose.position.x = init_position_x_take_off + 0;
+                    pose.pose.position.y = init_position_y_take_off + 0;
+                    pose.pose.position.z = init_position_z_take_off - 0.05 ;
                 }
                 break;
             case 103:
@@ -632,12 +500,8 @@ int main(int argc, char **argv) {
                 break;
         }
 
-        if(fly_ctrl_state == 0){
-            local_pos_pub.publish(setpoint_raw);
-        }else if (fly_ctrl_state == 1)
-        {
-            local_pos_pub.publish(setpoint_raw);
-        }
+        local_pos_pub.publish(pose);
+
         
         ros::spinOnce(); 
         rate.sleep();
