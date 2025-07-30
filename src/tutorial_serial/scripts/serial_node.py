@@ -18,7 +18,7 @@ class IMUSerialNode:
         rospy.init_node('serial_node', log_level=rospy.INFO)
         #self.serial_port = serial.Serial('/dev/ttyserial', 9600, timeout=1)
         try:
-            self.serial_port = serial.Serial('/dev/ttyUSB1', 9600, timeout=1)
+            self.serial_port = serial.Serial('/dev/ttyserial', 9600, timeout=1)
         except Exception as e:
             rospy.logerr("Failed to open serial port")
         self.buffer = bytearray()
@@ -59,7 +59,7 @@ class IMUSerialNode:
         self.tf_broadcaster = StaticTransformBroadcaster()
         rospy.Timer(rospy.Duration(0.001), self.read_serial)
 
-        self.camera_pos_forward() #摄像头下看
+        self.camera_pos_down() #摄像头下看
         self.laser_on()#打激光
         self.send_packet(0x0A, 0x01) #蜂鸣
 
@@ -106,7 +106,7 @@ class IMUSerialNode:
         if self.laser_status == 1:
             rospy.loginfo("Laser is already on")
             return
-        self.send_packet(0x05, 0x01)
+        self.send_packet(0x08, 0x01)
         self.laser_status = 1
         m = UInt8()
         m.data = self.laser_status
@@ -116,7 +116,7 @@ class IMUSerialNode:
         if self.laser_status == 0:
             rospy.loginfo("Laser is already off")
             return
-        self.send_packet(0x05, 0x00)
+        self.send_packet(0x08, 0x00)
         self.laser_status = 0
         m = UInt8()
         m.data = self.laser_status
