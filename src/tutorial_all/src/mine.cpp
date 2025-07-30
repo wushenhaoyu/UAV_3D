@@ -491,7 +491,7 @@ int main(int argc, char **argv) {
     ros::Subscriber odom_sub = nh.subscribe("/mavros/local_position/odom", 10, local_pos_cb);
     ros::Subscriber vision_pose_sub = nh.subscribe("/mavros/vision_pose/pose", 10, vision_pos_cb);
     ros::Subscriber clear_waypoint_sub = nh.subscribe("clear_waypoint", 10,clear_waypoint_cb);
-    ros::Subscriber waypoint_request_sub = nh.subscribe("waypoint_request", 10,); 
+    ros::Subscriber waypoint_request_sub = nh.subscribe("waypoint_request", 10,waypoint_request_cb); 
 
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>("mavros/cmd/arming");
     ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
@@ -559,7 +559,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 3:
-                    run_fly_task1();
+                    run_fly_task();
                 break;
             case 100:
                 set_position_mode();

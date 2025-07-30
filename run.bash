@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 定义launch文件路径
-LAUNCH_FILE="2024.launch"
+LAUNCH_FILE="2025.launch"
 
 # 定义ROS包名称（根据实际情况修改）
 ROS_PACKAGE="tutorial_all"
