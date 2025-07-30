@@ -22,8 +22,8 @@
 #include <cmath>
 #include <std_msgs/Bool.h>
 #include <tutorial_vision/ObjectError.h> 
-
-#define ALTITUDE  1.4
+#include <tutorial_serial/WayPoint.h> 
+#define ALTITUDE  1.1
 #define END_X 0
 #define END_Y 0
 #define END_Z 0.5
@@ -137,9 +137,18 @@ void state_cb(const mavros_msgs::State::ConstPtr& msg) {
     current_state = *msg;
 }
 
-void fly_target_cb(const std_msgs::UInt8::ConstPtr& msg) {
-    ROS_INFO("\033[34mRecieve fly_target: %d\033[0m", msg->data);
-    fly_target = msg->data;
+
+std::vector<tutorial_serial::WayPoint> waypoint_list;
+
+void clear_waypoint_cb(const std_msgs::UInt8::ConstPtr& msg) {
+    waypoint_list.clear();
+    ROS_INFO("Waypoints cleared.");
+}
+
+void waypoint_request_cb(const tutorial_serial::WayPoint::ConstPtr& msg) {
+    tutorial_serial::WayPoint waypoint = *msg;
+    waypoint_list.push_back(waypoint);
+    ROS_INFO("Waypoint requested: (%d, %d)", waypoint.x, waypoint.y);
 }
 
 tutorial_vision::ObjectError object_error;
@@ -437,30 +446,24 @@ void fly_to_point(double x, double y, double z, double stop_time) {
     }
 }
 
-void run_fly_task1() {
-    switch (fly_task_state) {
-        case 0: fly_to_point(0.5, 0.0, ALTITUDE, 2); break;
-        case 1: fly_to_point(0.5, 0.5, ALTITUDE, 2); break;
-        case 2: fly_to_point(0.0, 0.5, ALTITUDE, 2); break;
-        case 3: end_fly_task(); break;
-        default: break;
+void run_fly_task()
+{
+    if (waypoint_list.empty()) {
+        ROS_WARN("Waypoint list is empty, ending task.");
+        end_fly_task();
+        return;
     }
-}
 
-void run_fly_task2() {
-    switch (fly_task_state) {
-        case 0: change_yaw(2); break;
-        case 1: fly_to_point(0,0.5,ALTITUDE , 2); break;
-        case 2: change_yaw(1); break;
-        case 3: fly_to_point(0.5,0.5,ALTITUDE , 2); break;
-        case 4: change_yaw(3); break;
-        case 5: fly_to_point(0.5,0 ,ALTITUDE , 2); break;
-        case 6: change_yaw(0); break;
-        case 7: end_fly_task();break;
-        default: break;
+    // 已经全部飞完
+    if (fly_task_state >= waypoint_list.size()) {
+        end_fly_task();
+        return;
     }
-}
 
+    // 继续飞往当前目标点
+    const auto& wp = waypoint_list[fly_task_state];
+    fly_to_point(wp.x, wp.y, ALTITUDE, 1.0);
+}
 void test(){
         switch (fly_task_state) {
         case 0: set_xy_velocity(0.4 , 0 , 3 );break;
@@ -486,8 +489,9 @@ int main(int argc, char **argv) {
     ros::Subscriber object_error_sub = nh.subscribe("/object_error",10,object_error_cb);
     ros::Subscriber state_sub = nh.subscribe("mavros/state", 10, state_cb);
     ros::Subscriber odom_sub = nh.subscribe("/mavros/local_position/odom", 10, local_pos_cb);
-    ros::Subscriber fly_target_sub = nh.subscribe("fly_target", 10, fly_target_cb);
     ros::Subscriber vision_pose_sub = nh.subscribe("/mavros/vision_pose/pose", 10, vision_pos_cb);
+    ros::Subscriber clear_waypoint_sub = nh.subscribe("clear_waypoint", 10,clear_waypoint_cb);
+    ros::Subscriber waypoint_request_sub = nh.subscribe("waypoint_request", 10,); 
 
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>("mavros/cmd/arming");
     ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
@@ -511,7 +515,7 @@ int main(int argc, char **argv) {
     setpoint_raw.position.z = init_position_z_take_off + ALTITUDE;
 
     while (ros::ok()) {
-        if(fsm_state == 0)
+        /*if(fsm_state == 0)
         {
             if(current_state.mode == "ALTCTL")
             {
@@ -524,7 +528,7 @@ int main(int argc, char **argv) {
             task_msg.data = fly_task;
             fly_task_pub.publish(task_msg);
             
-        }
+        }*/
 
         switch (fsm_state) {
             case 0:

@@ -70,7 +70,12 @@
         "compare": "cpp",
         "concepts": "cpp",
         "ranges": "cpp",
-        "stop_token": "cpp"
+        "stop_token": "cpp",
+        "charconv": "cpp",
+        "format": "cpp",
+        "numbers": "cpp",
+        "semaphore": "cpp",
+        "span": "cpp"
     },
     "cmake.sourceDirectory": "/home/flmg/UAV_3D/src/FAST_LIO",
     "MicroPython.executeButton": [
