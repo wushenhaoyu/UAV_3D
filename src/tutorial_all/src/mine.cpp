@@ -24,8 +24,8 @@
 #include <tutorial_vision/ObjectError.h> 
 #include <tutorial_serial/WayPoint.h> 
 #define ALTITUDE  1.1
-#define END_X 0
-#define END_Y 0
+#define END_X 0.5
+#define END_Y 0.5
 #define END_Z 0.5
 
 #define X_POS_P 0.5
@@ -484,8 +484,9 @@ void run_fly_task()
 }
 void test(){
         switch (fly_task_state) {
-        case 0: set_xy_velocity(0.4 , 0 , 3 );break;
-        case 1: set_xy_velocity(0 , 0 , 3 );break;
+        case 0: fly_to_point(1,0,ALTITUDE,4.0);break;
+        case 1: fly_to_point(1,1,ALTITUDE,4.0);break;
+        case 2: fly_to_point(0,1,ALTITUDE,4.0);break;
         case 2: end_fly_task();break;
         default: break;
     }
@@ -577,7 +578,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 3:
-                    run_fly_task();
+                    test();
                 break;
             case 100:
                 set_position_mode();
@@ -608,8 +609,8 @@ int main(int argc, char **argv) {
                     fsm_state = 103;
                     last_request = ros::Time::now();
                 }else{
-                    setpoint_raw.position.x = init_position_x_take_off + END_X;
-                    setpoint_raw.position.y = init_position_y_take_off + END_Y;
+                    setpoint_raw.position.x = init_position_x_take_off + 0;
+                    setpoint_raw.position.y = init_position_y_take_off + 0;
                     setpoint_raw.position.z = init_position_z_take_off - 0.15 ;
                 }
                 break;
