@@ -49,8 +49,14 @@ class IMUSerialNode:
         self.deny_fly_2 = None
         self.deny_fly_3 = None
 
+        self.laser_status = 0
+        self.camera_pos = 0
+        
+
         self.waypoint_reuqest_pub = rospy.Publisher("waypoint_request", WayPoint, queue_size=10)
         self.clear_waypoint_pub = rospy.Publisher("clear_waypoint", UInt8, queue_size=10)
+        self.camera_pos_pub = rospy.Publisher("camera_pos", UInt8, queue_size=10)
+        self.laser_status_pub = rospy.Publisher("laser_status", UInt8, queue_size=10)
         # 订阅二维码检测结果
         #self.qr_sub = rospy.Subscriber("qr_detect_result", StringStamped, self.qr_callback)
         self.fly_task_sub = rospy.Subscriber("fly_task", Int32, self.fly_task_callback)
@@ -67,6 +73,34 @@ class IMUSerialNode:
         self.camera_pos_down() #摄像头下看
         self.laser_on()#打激光
         self.send_packet(0x0A, 0x01) #蜂鸣
+
+    def read_serial(self, event):
+        try:
+            while self.serial_port.in_waiting > 0:
+                byte = self.serial_port.read(1)
+                if not self.receiving and byte == b'\xAA':
+                    self.receiving = True
+                    self.buffer = bytearray()
+                    self.func = 0
+                    self.current = 0
+                    self.length = 0
+                elif self.receiving:
+                    if self.current == 0:
+                        self.func = ord(byte)
+                        self.current += 1
+                    elif self.current == 1:
+                        self.length = ord(byte)
+                        self.current += 1
+                    elif self.current - 2 < self.length:
+                        self.buffer.extend(byte)
+                        self.current += 1
+                    elif self.current - 2 == self.length:
+                        if byte == b'\xAF':
+                            self.deal_with_data(self.func, self.length, self.buffer)
+                        self.receiving = False
+        except Exception as e:
+            pass
+            #rospy.logerr("Failed to read serial port: %s", str(e))
 
 
     def serial_ctrl_callback(self, data):

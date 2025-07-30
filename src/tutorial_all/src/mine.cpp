@@ -133,6 +133,19 @@ void local_pos_cb(const nav_msgs::Odometry::ConstPtr& msg) {
    // ROS_INFO("Body position: (%.2f, %.2f, %.2f),ENU position: (%.2f, %.2f, %.2f),True_ENU position:(%.2f, %.2f, %.2f)",x_body,y_body,local_pos.pose.pose.position.z,x_enu,y_enu,local_pos.pose.pose.position.z,local_pos.pose.pose.position.x,local_pos.pose.pose.position.y,local_pos.pose.pose.position.z);
 }
 
+int camera_pos = 0;
+void camera_pos_cb(const std_msgs::UInt8::ConstPtr& msg)
+{
+    camera_pos = msg->data;
+    ROS_INFO("Camera position: %d", camera_pos);
+}
+int laser_status = 0;
+void laser_status_cb(const std_msgs::UInt8::ConstPtr& msg)
+{
+    laser_status = msg->data;
+    ROS_INFO("Laser status: %d", laser_status);
+}
+
 void state_cb(const mavros_msgs::State::ConstPtr& msg) {
     current_state = *msg;
 }
@@ -189,10 +202,12 @@ double getHeightBetweenPoints(double *out_err_z = nullptr) {
     return fabs(err_z);
 }
 
+
 void camera_turn_forward(){ 
     tutorial_serial::SerialData serial_msg;
     serial_msg.func = 4;
     serial_msg.data = 0;
+    camera_pos = 0;
     serial_pub.publish(serial_msg);
 }
 
@@ -200,6 +215,7 @@ void camera_turn_bottom(){
     tutorial_serial::SerialData serial_msg;
     serial_msg.func = 4;
     serial_msg.data = 1;
+    camera_pos = 1;
     serial_pub.publish(serial_msg);
 }
 
@@ -235,7 +251,7 @@ void motors_turn_on(){//下放物品
     tutorial_serial::SerialData serial_msg;
     serial_msg.func = 7;
     serial_msg.data = 0;
-    serial_pub.publish(serial_msg);;
+    serial_pub.publish(serial_msg);
 }
 
 void motors_turn_off(){ //上拉物品
@@ -250,13 +266,15 @@ void laser_turn_forward(){//开激光
     tutorial_serial::SerialData serial_msg;
     serial_msg.func = 8;
     serial_msg.data = 1;
-    serial_pub.publish(serial_msg);;
+    laser_status = 1;
+    serial_pub.publish(serial_msg);
 }
 
 void laser_turn_bottom(){ //关激光
     tutorial_serial::SerialData serial_msg;
     serial_msg.func = 8;
     serial_msg.data = 0;
+    laser_status = 0;
     serial_pub.publish(serial_msg);
 }
 
