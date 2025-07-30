@@ -1,5 +1,0 @@
-<?xml version="1.0"?>
-<launch>
-    <node pkg="tutorial_vision" type="tria_detector.py" name="tria_detector" output="screen"></node>
-    <include file="$(find tutorial_vision)/launch/simple_camera_driver.launch" />
-</launch>

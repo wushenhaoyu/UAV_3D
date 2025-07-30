@@ -18,7 +18,7 @@ class IMUSerialNode:
         rospy.init_node('serial_node', log_level=rospy.INFO)
         #self.serial_port = serial.Serial('/dev/ttyserial', 9600, timeout=1)
         try:
-            self.serial_port = serial.Serial('/dev/ttyUSB1', 9600, timeout=1)
+            self.serial_port = serial.Serial('/dev/ttyserial', 9600, timeout=1)
         except Exception as e:
             rospy.logerr("Failed to open serial port")
         self.buffer = bytearray()
@@ -38,13 +38,8 @@ class IMUSerialNode:
 
         self.target = 0
         self.fly_target_pub = rospy.Publisher('fly_target', UInt8, queue_size=10)
-        self.camera_pos_pub = rospy.Publisher("camera_pos", UInt8, queue_size=10)
-        self.laser_status_pub = rospy.Publisher("laser_status", UInt8, queue_size=10)
 
         self.count = 0
-
-        self.camera_pos = 0 # 摄像头位置，0表示前看，1表示下看
-        self.laser_status = 0 # 激光状态，0表示关闭，1表示开启
 
         # 订阅二维码检测结果
         #self.qr_sub = rospy.Subscriber("qr_detect_result", StringStamped, self.qr_callback)
@@ -59,15 +54,11 @@ class IMUSerialNode:
         self.tf_broadcaster = StaticTransformBroadcaster()
         rospy.Timer(rospy.Duration(0.001), self.read_serial)
 
-        self.camera_pos_forward() #摄像头下看
-        self.laser_on()#打激光
+        self.send_packet(0x04, 0x01) #摄像头下看
+        self.send_packet(0x08, 0x01) #打激光
         self.send_packet(0x0A, 0x01) #蜂鸣
 
     def serial_ctrl_callback(self, data):
-        if data.func == 0x04:
-            self.camera_pos = data.data
-        if data.func == 0x05:
-            self.laser_status = data.data
         self.send_packet(data.func,data.data)
     def send_packet(self, func , data):
         packet = bytearray()
@@ -81,46 +72,6 @@ class IMUSerialNode:
             self.serial_port.write(packet)
         except Exception as e:
             rospy.logerr("Failed to write to serial port: %s", str(e))
-
-    def camera_pos_forward(self):
-        if self.camera_pos == 0:
-            rospy.loginfo("Camera is already in forward position")
-            return
-        self.send_packet(0x04, 0x00)
-        self.camera_pos = 0
-        m = UInt8()
-        m.data = self.camera_pos
-        self.camera_pos_pub.publish(m)
-
-    def camera_pos_down(self):
-        if self.camera_pos == 1:
-            rospy.loginfo("Camera is already in down position")
-            return
-        self.send_packet(0x04, 0x01)
-        self.camera_pos = 1
-        m = UInt8()
-        m.data = self.camera_pos
-        self.camera_pos_pub.publish(m)
-
-    def laser_on(self):
-        if self.laser_status == 1:
-            rospy.loginfo("Laser is already on")
-            return
-        self.send_packet(0x05, 0x01)
-        self.laser_status = 1
-        m = UInt8()
-        m.data = self.laser_status
-        self.laser_status_pub.publish(m)
-    
-    def laser_off(self):
-        if self.laser_status == 0:
-            rospy.loginfo("Laser is already off")
-            return
-        self.send_packet(0x05, 0x00)
-        self.laser_status = 0
-        m = UInt8()
-        m.data = self.laser_status
-        self.laser_status_pub.publish(m)
 
     def camera_en_callback(self,data):
         self.camera_en = data.data
@@ -160,7 +111,6 @@ class IMUSerialNode:
             target_msg = UInt8()
             target_msg.data = self.target
             self.fly_target_pub.publish(target_msg)
-            rospy.loginfo("target: %d", self.target)
 
     def fly_task_callback(self, data):
         self.fly_task = data.data
