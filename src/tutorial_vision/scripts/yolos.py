@@ -29,10 +29,6 @@ class YOLOv8ROS:
         # 模型加载
         self.model = YOLO(self.model_path)
 
-        # 控制开关
-        self.en = False
-        rospy.Subscriber('enable', Aninmal, self.en_cb)   # 示例：通过消息触发
-
         # ROS 通信
         self.bridge = CvBridge()
         self.pub = rospy.Publisher('yolo_result', Aninmal, queue_size=10)
@@ -41,12 +37,8 @@ class YOLOv8ROS:
         rospy.loginfo("YOLOv8 ROS node started")
 
     # -------------------------------------------------
-    def en_cb(self, _):
-        self.en = True
 
     def image_callback(self, msg):
-        if not self.en:
-            return
 
         # 1. 图像转换
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")

@@ -75,9 +75,7 @@ bool point_arrive_flag = false;
 ros::Publisher true_pos_pub;
 ros::Publisher yaw_symbol_pub;
 ros::Publisher local_pos_pub;
-ros::Publisher camera_en_pub ;
 ros::Publisher serial_pub;
-ros::Publisher yolo_data_pub;
 void beep();
 void vision_pos_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
@@ -175,19 +173,12 @@ void waypoint_request_cb(const tutorial_serial::WayPointArry::ConstPtr& msg) {
         new_wp.y = wp.y;
         new_wp.is_new = wp.z;
         waypoint_list.push_back(new_wp);
+        ROS_INFO("Waypoint: (%.2f, %.2f, %d)", wp.x * 0.5 - 0.5, wp.y * 0.5 - 0.5, wp.z);
     }
     ROS_INFO("Received %zu waypoints.", waypoint_list.size());
 }
 
-void yolo_result_cb(const tutorial_vision::Aninmal::ConstPtr& msg) {
-    tutorial_serial::AninmalData data;
-    data.type = msg->type;
-    data.number = msg->number;
-    data.x = waypoint_list[fly_task_state].x;
-    data.y = waypoint_list[fly_task_state].y;
-    yolo_data_pub.publish(data);
 
-}
 
  
 double getAngleBetweenPoints(double* out_err = nullptr) {
@@ -254,19 +245,7 @@ void laser_turn_bottom(){ //关激光
     serial_pub.publish(serial_msg);
 }
 
-void camera_enable(){
-    std_msgs::Bool task_msg;
-    task_msg.data = true;
-    camera_en_pub.publish(task_msg);
-    ROS_INFO("Camera enabled.");
-}
 
-void camera_disable(){
-    std_msgs::Bool task_msg;
-    task_msg.data = false;
-    camera_en_pub.publish(task_msg);
-    ROS_INFO("Camera disabled.");
-}
 
 void beep(){
     tutorial_serial::SerialData serial_msg;
@@ -335,12 +314,10 @@ void fly_to_point(double x, double y, double z, double stop_time) {
         if (!point_arrive_flag) {
             point_arrive_flag = true;
             last_request = ros::Time::now();
-            camera_enable();
         } else if (ros::Time::now() - last_request > ros::Duration(stop_time)) {
             point_arrive_flag = false;
             last_request = ros::Time::now();
             fly_task_state++;
-            camera_disable();
             ROS_INFO("\033[32mComplete a fly task\033[0m");
         }
     }
@@ -354,12 +331,10 @@ void fly_to_point_speical(double x, double y, double z, double stop_time) {
         if (!point_arrive_flag) {
             point_arrive_flag = true;
             last_request = ros::Time::now();
-            camera_enable();
         } else if (ros::Time::now() - last_request > ros::Duration(stop_time)) {
             point_arrive_flag = false;
             last_request = ros::Time::now();
             fly_task_state++;
-            camera_disable();
             ROS_INFO("\033[32mComplete a fly task\033[0m");
         }
     }
@@ -400,14 +375,11 @@ int main(int argc, char **argv) {
     ros::Rate rate(20.0);
 
     ros::Publisher fly_task_pub = nh.advertise<std_msgs::Int32>("fly_task", 1);
-    yolo_data_pub = nh.advertise<tutorial_serial::AninmalData>("yolo_data", 10);
     serial_pub = nh.advertise<tutorial_serial::SerialData>("serial_ctrl", 10);
-    camera_en_pub = nh.advertise<std_msgs::Bool>("camera_en", 1);
     local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 10);
     yaw_symbol_pub = nh.advertise<std_msgs::Int32>("yaw_symbol", 1);
     true_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("true_position", 10);
 
-    ros::Subscriber waypoint_sub = nh.subscribe("yolo_result", 10, yolo_result_cb);
     ros::Subscriber state_sub = nh.subscribe("mavros/state", 10, state_cb);
     ros::Subscriber odom_sub = nh.subscribe("/mavros/local_position/odom", 10, local_pos_cb);
     ros::Subscriber vision_pose_sub = nh.subscribe("/mavros/vision_pose/pose", 10, vision_pos_cb);
@@ -464,23 +436,12 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 3:
-                    test();
+                    run_fly_task();
                 break;
             case 100:
-                if(getLengthBetweenPoints() < 0.1 && getHeightBetweenPoints() < 0.1   && ros::Time::now() - last_request > ros::Duration(4.0))
-                {
-                    fsm_state = 101;
-                    last_request = ros::Time::now();
-                }else{
-                    pose.pose.position.x = init_position_x_take_off + END_X;
-                    pose.pose.position.y = init_position_y_take_off + END_Y;
-                    pose.pose.position.z = init_position_z_take_off + ALTITUDE;
-                }
-                break;
-            case 101:
                 if(getLengthBetweenPoints() < 0.1 && fabs(init_position_z_take_off - local_pos.pose.pose.position.z) < 0.1 )
                 {
-                    fsm_state = 102;
+                    fsm_state = 101;
                     last_request = ros::Time::now();
                 }else{
                     pose.pose.position.x = init_position_x_take_off + 0;
@@ -488,7 +449,7 @@ int main(int argc, char **argv) {
                     pose.pose.position.z = init_position_z_take_off - 0.15 ;
                 }
                 break;
-            case 102:
+            case 101:
                 if(current_state.mode == "AUTO.LAND"){
                     fsm_state = -1; 
                 }else{

@@ -6,7 +6,13 @@ import rospy
 import cv2
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
+from std_msgs.msg import Bool
 
+camera_en = False
+def camera_en_cb(data):
+    global camera_en
+    camera_en = data.data
+    
 
 def main(argv):
     rospy.init_node("simple_camera_driver", argv=argv)
@@ -15,10 +21,13 @@ def main(argv):
     rate_duration = rospy.get_param("~rate", 10)
     
     image_pub = rospy.Publisher("camera/image_raw", Image, queue_size=1)
+    camera_en_sub = rospy.Subscriber("camera_en", Bool, camera_en_cb)
     capture = cv2.VideoCapture(camera_id)
     bridge = CvBridge()
     rate = rospy.Rate(rate_duration)
     while not rospy.is_shutdown():
+        if not camera_en:
+            continue
         ret, frame = capture.read()
         if ret:
             try:

@@ -15,6 +15,7 @@ from std_msgs.msg import UInt8, Int32
 from std_msgs.msg import Bool
 from tutorial_serial.msg import SerialData
 from tutorial_serial.msg import WayPoint, WayPointArry, AninmalData
+from tutorial_vision.msg import Aninmal
 class IMUSerialNode:
     def __init__(self):
         rospy.init_node('serial_node', log_level=rospy.INFO)
@@ -52,7 +53,9 @@ class IMUSerialNode:
         self.laser_status = 0
         self.camera_pos = 0
         
+        self._shoot_idx = 0
 
+        self.camera_en_pub = rospy.Publisher("camera_en", Bool, queue_size=10)
         self.waypoint_reuqest_pub = rospy.Publisher("waypoint_request", WayPointArry, queue_size=10)
         self.clear_waypoint_pub = rospy.Publisher("clear_waypoint", UInt8, queue_size=10)
         self.camera_pos_pub = rospy.Publisher("camera_pos", UInt8, queue_size=10)
@@ -63,9 +66,8 @@ class IMUSerialNode:
         self.yaw_symbol_sub = rospy.Subscriber("yaw_symbol", Int32, self.yaw_symbol_callback)
         self.true_pos_sub = rospy.Subscriber("true_position", PoseStamped, self.true_pos_callback)
         self.serial_ctrl_sub = rospy.Subscriber("serial_ctrl", SerialData, self.serial_ctrl_callback)
-        self.camera_en_sub   = rospy.Subscriber("camera_en", Bool, self.camera_en_callback)
-        self.yolo_data_sub = rospy.Subscriber("yolo_data", AninmalData, self.yolo_data_cb)
-        self.camera_en  = False
+        self.yolo_result_sub = rospy.Subscriber("yolo_result", Aninmal, self.yolo_result_callback)
+
 
         # TF2 相关
         self.tf_broadcaster = StaticTransformBroadcaster()
@@ -103,8 +105,9 @@ class IMUSerialNode:
             pass
             #rospy.logerr("Failed to read serial port: %s", str(e))
 
-    def yolo_data_cb(self, data):
-        self.send_animnal(data.type, data.x, data.y, data.number)
+    def yolo_result_callback(self, data):
+        self.send_animnal(data.type, self.waypointController._full_path[self._shoot_idx - 1][0], self.waypointController._full_path[self._shoot_idx - 1][1], data.number)
+        #self.send_animnal(data.type, data.x, data.y, data.number)
 
     def serial_ctrl_callback(self, data):
         self.send_packet(data.func,data.data)
@@ -160,35 +163,7 @@ class IMUSerialNode:
         m.data = self.laser_status
         self.laser_status_pub.publish(m)
 
-    def camera_en_callback(self,data):
-        self.camera_en = data.data
-        #rospy.loginfo("camera_en: %s", self.camera_en)
-        try:
-            while self.serial_port.in_waiting > 0:
-                byte = self.serial_port.read(1)
-                if not self.receiving and byte == b'\xAA':
-                    self.receiving = True
-                    self.buffer = bytearray()
-                    self.func = 0
-                    self.current = 0
-                    self.length = 0
-                elif self.receiving:
-                    if self.current == 0:
-                        self.func = ord(byte)
-                        self.current += 1
-                    elif self.current == 1:
-                        self.length = ord(byte)
-                        self.current += 1
-                    elif self.current - 2 < self.length:
-                        self.buffer.extend(byte)
-                        self.current += 1
-                    elif self.current - 2 == self.length:
-                        if byte == b'\xAF':
-                            self.deal_with_data(self.func, self.length, self.buffer)
-                        self.receiving = False
-        except Exception as e:
-            pass
-            #rospy.logerr("Failed to read serial port: %s", str(e))
+
 
     def deal_with_data(self, func, length, data):
         if(func == 0x01):
@@ -216,10 +191,12 @@ class IMUSerialNode:
                     ax, ay = self.coordinateConverter.map_to_aircraft((mx, my))
                     packet.append(mx)
                     packet.append(my)
+
+                for point in self.waypointController.easy_path:
                     p = Point()
-                    p.x = ax
-                    p.y = ay
-                    p.z = is_new
+                    p.x = point[0]
+                    p.y = point[1]
+                    p.z = 0
                     WayPointArry_msg.points.append(p)
                 packet.append(0xAF)
                 self.serial_port.write(packet)
@@ -271,7 +248,9 @@ class IMUSerialNode:
             rospy.logerr("Failed to write to serial port: %s", str(e))                             
 
             
-
+    def camera_en(self):
+        self.camera_en_pub.publish(Bool(True))
+        rospy.loginfo("camera_en")
 
     def fly_task_callback(self, data):
         self.fly_task = data.data
@@ -282,9 +261,6 @@ class IMUSerialNode:
 
 
     def true_pos_callback(self, msg):
-        self.count = self.count + 1
-        if(self.count != 10):
-            return
         # 提取位置
         position = msg.pose.position
         self.x = position.x
@@ -301,6 +277,22 @@ class IMUSerialNode:
         ]
         roll, pitch, yaw = euler_from_quaternion(quaternion)
         self.yaw = yaw
+
+        if not self.waypointController._full_path:
+            return
+        
+        if self._shoot_idx < len(self.waypointController._full_path):
+            mx, my = self.waypointController._full_path[self._shoot_idx]
+            ax, ay = self.coordinateConverter.map_to_aircraft((mx, my))
+            ax = ax * 0.5 - 0.5
+            ay = ay * 0.5 - 0.5
+            d = math.sqrt((ax - self.x) ** 2 + (ay - self.y) ** 2)
+            if d < 0.15:
+                self.camera_en()
+                self._shoot_idx += 1
+
+            
+
 
 class CoordinateConverter:
     def map_to_aircraft(self, map_coords: tuple) -> tuple:
@@ -332,6 +324,9 @@ class WaypointController:
         self._full_path = []
         self._current_step_index = 0
         self._visited_for_recognition = set()
+        self._easy_path = []
+
+        self.dd = True
 
     # ---------- 原有工具 ----------
     def _is_no_fly_zone_horizontal(self, no_fly_coords: list) -> bool:
@@ -404,8 +399,21 @@ class WaypointController:
                 path.extend(home_path[1:-1])
 
         self._full_path = path
+        if self.dd:
+            self._full_path = [
+    (9, 1), (8, 1), (7, 1), (6, 1), (5, 1), (4, 1), (3, 1), (2, 1), (1, 1),
+    (1, 2), (2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2), (8, 2), (9, 2),
+    (9, 3), (8, 3), (7, 3), (6, 3), (5, 3), (4, 3), (3, 3), (2, 3), (1, 3),
+    (1, 4), (2, 4), (3, 4), (4, 4), (5, 4), (6, 4), (7, 4), (8, 4), (9, 4),
+    (9, 5), (8, 5), (7, 5), (6, 5), (5, 5), (4, 5), (3, 5), (2, 5), (1, 5),
+    (1, 6), (2, 6), (3, 6), (4, 6), (5, 6), (6, 6), (7, 6), (8, 6), (9, 6),
+    (9, 7), (8, 7), (7, 7), (6, 7), (5, 7), (4, 7), (3, 7), (2, 7), (1, 7), (2, 7), (3, 7), (4, 7), (5, 7),
+    (6, 7), (7, 7), (8, 7), (9, 7),
+    (9, 6), (9, 5), (9, 4), (9, 3), (9, 2), (9, 1)
+]
         self._current_step_index = 0
         self._visited_for_recognition = set()
+        self.easy_path = self.compress_path(self._full_path)
         print(f"Complete : {len(self._full_path)}。")
 
     # ---------- 获取下一个航点 ----------
@@ -419,6 +427,30 @@ class WaypointController:
             self._visited_for_recognition.add(coord)
         self._current_step_index += 1
         return coord, is_new
+    
+    @staticmethod
+    def compress_path(path: list) -> list:
+        """
+        把一条由相邻格点组成的路径压缩成只包含起点、拐弯点和终点的列表。
+        """
+        if len(path) < 3:
+            return path
+
+        compressed = [path[0]]
+        prev_dx = path[1][0] - path[0][0]
+        prev_dy = path[1][1] - path[0][1]
+
+        for i in range(2, len(path)):
+            dx = path[i][0] - path[i - 1][0]
+            dy = path[i][1] - path[i - 1][1]
+            # 方向改变 -> 前一个点就是拐弯点
+            if (dx, dy) != (prev_dx, prev_dy):
+                compressed.append(path[i - 1])
+                prev_dx, prev_dy = dx, dy
+
+        compressed.append(path[-1])
+        return compressed
+
 
         
     
