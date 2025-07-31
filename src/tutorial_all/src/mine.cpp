@@ -27,8 +27,8 @@
 #include <tutorial_serial/AninmalData.h>
 #include <tutorial_vision/Aninmal.h>
 #define ALTITUDE  1.1
-#define END_X 0.5
-#define END_Y 0.5
+#define END_X 0
+#define END_Y 0
 #define END_Z 0.7
 
 #define X_POS_P 0.5
@@ -386,13 +386,9 @@ void run_fly_task()
 void test(){
         switch (fly_task_state) {
         case 0: fly_to_point(0.5,0,ALTITUDE,2.0);break;
-        case 1: fly_to_point(1.0,0,ALTITUDE,2.0);break;
-        case 2: fly_to_point(1.0,0.5,ALTITUDE,2.0);break;
-        case 3: fly_to_point(1.0,1.0,ALTITUDE,2.0);break;
-        case 4: fly_to_point(0.5,1.0,ALTITUDE,2.0);break;
-        case 5: fly_to_point(0,1,ALTITUDE,2.0);break;
-        case 6: fly_to_point(0,0.5,ALTITUDE,2.0);break;
-        case 7: end_fly_task();break;
+        case 1: fly_to_point(0.5,0.5,ALTITUDE,2.0);break;
+        case 2: fly_to_point(0,0.5,ALTITUDE,2.0);break;
+        case 3: end_fly_task();break;
         default: break;
     }
 }
@@ -481,21 +477,10 @@ int main(int argc, char **argv) {
                     pose.pose.position.z = init_position_z_take_off + ALTITUDE;
                 }
                 break;
-	        case 101:
-                if(getLengthBetweenPoints() < 0.1 && getHeightBetweenPoints() < 0.1   && ros::Time::now() - last_request > ros::Duration(4.0))
-                {
-                    fsm_state = 102;
-                    last_request = ros::Time::now();
-                }else{
-                    pose.pose.position.x = init_position_x_take_off + END_X;
-                    pose.pose.position.y = init_position_y_take_off + END_Y;
-                    pose.pose.position.z = init_position_z_take_off + END_Z;
-                }
-                break;
-            case 102:
+            case 101:
                 if(getLengthBetweenPoints() < 0.1 && fabs(init_position_z_take_off - local_pos.pose.pose.position.z) < 0.1 )
                 {
-                    fsm_state = 103;
+                    fsm_state = 102;
                     last_request = ros::Time::now();
                 }else{
                     pose.pose.position.x = init_position_x_take_off + 0;
@@ -503,7 +488,7 @@ int main(int argc, char **argv) {
                     pose.pose.position.z = init_position_z_take_off - 0.15 ;
                 }
                 break;
-            case 103:
+            case 102:
                 if(current_state.mode == "AUTO.LAND"){
                     fsm_state = -1; 
                 }else{
@@ -516,7 +501,7 @@ int main(int argc, char **argv) {
             default:
                 if (fsm_state != -1) {
                     ROS_FATAL("FSM in invalid state: %d, emergency landing.", fsm_state);
-                    fsm_state = 101;
+                    fsm_state = 102;
                 }
                 break;
         }
