@@ -78,7 +78,7 @@ ros::Publisher local_pos_pub;
 ros::Publisher camera_en_pub ;
 ros::Publisher serial_pub;
 ros::Publisher yolo_data_pub;
-void void beep();
+void beep();
 void vision_pos_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
     if (!flag_vision_ready) {
@@ -138,15 +138,6 @@ void local_pos_cb(const nav_msgs::Odometry::ConstPtr& msg) {
    // ROS_INFO("Body position: (%.2f, %.2f, %.2f),ENU position: (%.2f, %.2f, %.2f),True_ENU position:(%.2f, %.2f, %.2f)",x_body,y_body,local_pos.pose.pose.position.z,x_enu,y_enu,local_pos.pose.pose.position.z,local_pos.pose.pose.position.x,local_pos.pose.pose.position.y,local_pos.pose.pose.position.z);
 }
 
-void yolo_result_cb(const tutorial_vision::Aninmal::ConstPtr& msg) {
-    data =  tutorial_serial::AninmalData();
-    data.type = msg->type;
-    data.number = msg->number;
-    data.x = waypoint_list[fly_task_state].x
-    data.y = waypoint_list[fly_task_state].y;
-    yolo_data_pub.publish(data);
-
-}
 
 int camera_pos = 0;
 void camera_pos_cb(const std_msgs::UInt8::ConstPtr& msg)
@@ -178,7 +169,7 @@ void clear_waypoint_cb(const std_msgs::UInt8::ConstPtr& msg) {
 
 void waypoint_request_cb(const tutorial_serial::WayPointArry::ConstPtr& msg) {
     waypoint_list.clear();
-    for (const auto& wp : msg->waypoints) {
+    for (const auto& wp : msg-> points) {
         tutorial_serial::WayPoint new_wp;
         new_wp.x = wp.x;
         new_wp.y = wp.y;
@@ -186,6 +177,16 @@ void waypoint_request_cb(const tutorial_serial::WayPointArry::ConstPtr& msg) {
         waypoint_list.push_back(new_wp);
     }
     ROS_INFO("Received %zu waypoints.", waypoint_list.size());
+}
+
+void yolo_result_cb(const tutorial_vision::Aninmal::ConstPtr& msg) {
+    tutorial_serial::AninmalData data;
+    data.type = msg->type;
+    data.number = msg->number;
+    data.x = waypoint_list[fly_task_state].x;
+    data.y = waypoint_list[fly_task_state].y;
+    yolo_data_pub.publish(data);
+
 }
 
  
@@ -201,6 +202,8 @@ double getAngleBetweenPoints(double* out_err = nullptr) {
     if (out_err) *out_err = degree_diff;
     return degree_diff;
 }
+
+
 
 
 double getLengthBetweenPoints(double *out_err_x = nullptr, double *out_err_y = nullptr) {
