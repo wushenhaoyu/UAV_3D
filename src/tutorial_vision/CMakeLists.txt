@@ -173,7 +173,6 @@ target_link_libraries(yolo_detect_node ${catkin_LIBRARIES})
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
 catkin_install_python(PROGRAMS
-  scripts/rect_detector.py
   scripts/yolos.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
