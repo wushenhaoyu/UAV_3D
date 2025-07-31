@@ -59,6 +59,7 @@ add_message_files(
   CircleDetectResult.msg
   StringStamped.msg
   ObjectError.msg
+  Aninmal.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -173,6 +174,7 @@ target_link_libraries(yolo_detect_node ${catkin_LIBRARIES})
 ## in contrast to setup.py, you can choose the destination
 catkin_install_python(PROGRAMS
   scripts/rect_detector.py
+  scripts/yolos.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

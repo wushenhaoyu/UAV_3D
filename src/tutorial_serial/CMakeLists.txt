@@ -53,6 +53,7 @@ find_package(catkin REQUIRED COMPONENTS
    SerialData.msg
    WayPoint.msg
    WayPointArry.msg
+   AninmalData.msg
  )
 
 ## Generate services in the 'srv' folder

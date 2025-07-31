@@ -23,6 +23,9 @@
 #include <std_msgs/Bool.h>
 #include <tutorial_vision/ObjectError.h> 
 #include <tutorial_serial/WayPoint.h> 
+#include <tutorial_serial/WayPointArry.h>
+#include <tutorial_serial/AninmalData.h>
+#include <tutorial_vision/Aninmal.h>
 #define ALTITUDE  1.1
 #define END_X 0.5
 #define END_Y 0.5
@@ -74,7 +77,7 @@ ros::Publisher yaw_symbol_pub;
 ros::Publisher local_pos_pub;
 ros::Publisher camera_en_pub ;
 ros::Publisher serial_pub;
-void object_track_xy(int type);
+ros::Publisher yolo_data_pub;
 void void beep();
 void vision_pos_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
@@ -133,6 +136,16 @@ void local_pos_cb(const nav_msgs::Odometry::ConstPtr& msg) {
 //	ROS_INFO("yaw:%.3f",(yaw - initial_yaw) * 180 / M_PI);
     
    // ROS_INFO("Body position: (%.2f, %.2f, %.2f),ENU position: (%.2f, %.2f, %.2f),True_ENU position:(%.2f, %.2f, %.2f)",x_body,y_body,local_pos.pose.pose.position.z,x_enu,y_enu,local_pos.pose.pose.position.z,local_pos.pose.pose.position.x,local_pos.pose.pose.position.y,local_pos.pose.pose.position.z);
+}
+
+void yolo_result_cb(const tutorial_vision::Aninmal::ConstPtr& msg) {
+    data =  tutorial_serial::AninmalData();
+    data.type = msg->type;
+    data.number = msg->number;
+    data.x = waypoint_list[fly_task_state].x
+    data.y = waypoint_list[fly_task_state].y;
+    yolo_data_pub.publish(data);
+
 }
 
 int camera_pos = 0;
@@ -388,12 +401,14 @@ int main(int argc, char **argv) {
     ros::Rate rate(20.0);
 
     ros::Publisher fly_task_pub = nh.advertise<std_msgs::Int32>("fly_task", 1);
+    yolo_data_pub = nh.advertise<tutorial_serial::AninmalData>("yolo_data", 10);
     serial_pub = nh.advertise<tutorial_serial::SerialData>("serial_ctrl", 10);
     camera_en_pub = nh.advertise<std_msgs::Bool>("camera_en", 1);
     local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 10);
     yaw_symbol_pub = nh.advertise<std_msgs::Int32>("yaw_symbol", 1);
     true_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("true_position", 10);
 
+    ros::Subscriber waypoint_sub = nh.subscribe("yolo_result", 10, yolo_result_cb);
     ros::Subscriber state_sub = nh.subscribe("mavros/state", 10, state_cb);
     ros::Subscriber odom_sub = nh.subscribe("/mavros/local_position/odom", 10, local_pos_cb);
     ros::Subscriber vision_pose_sub = nh.subscribe("/mavros/vision_pose/pose", 10, vision_pos_cb);
@@ -420,20 +435,6 @@ int main(int argc, char **argv) {
     pose.pose.position.z = init_position_z_take_off + ALTITUDE;
 
     while (ros::ok()) {
-        /*if(fsm_state == 0)
-        {
-            if(current_state.mode == "ALTCTL")
-            {
-                fly_task = 1;
-            }else if (current_state.mode == "POSCTL")
-            {
-                fly_task = 2;
-            }
-            std_msgs::Int32 task_msg;
-            task_msg.data = fly_task;
-            fly_task_pub.publish(task_msg);
-            
-        }*/
 
         switch (fsm_state) {
             case 0:
@@ -496,7 +497,7 @@ int main(int argc, char **argv) {
                 }else{
                     pose.pose.position.x = init_position_x_take_off + 0;
                     pose.pose.position.y = init_position_y_take_off + 0;
-                    pose.pose.position.z = init_position_z_take_off - 0.05 ;
+                    pose.pose.position.z = init_position_z_take_off - 0.15 ;
                 }
                 break;
             case 103:

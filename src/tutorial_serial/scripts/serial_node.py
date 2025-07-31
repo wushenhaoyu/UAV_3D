@@ -14,7 +14,7 @@ from tutorial_vision.msg import StringStamped  # 导入二维码消息类型
 from std_msgs.msg import UInt8, Int32
 from std_msgs.msg import Bool
 from tutorial_serial.msg import SerialData
-from tutorial_serial.msg import WayPoint, WayPointArry
+from tutorial_serial.msg import WayPoint, WayPointArry, AninmalData
 class IMUSerialNode:
     def __init__(self):
         rospy.init_node('serial_node', log_level=rospy.INFO)
@@ -64,6 +64,7 @@ class IMUSerialNode:
         self.true_pos_sub = rospy.Subscriber("true_position", PoseStamped, self.true_pos_callback)
         self.serial_ctrl_sub = rospy.Subscriber("serial_ctrl", SerialData, self.serial_ctrl_callback)
         self.camera_en_sub   = rospy.Subscriber("camera_en", Bool, self.camera_en_callback)
+        self.yolo_data_sub = rospy.Subscriber("yolo_data", AninmalData, self.yolo_data_cb)
         self.camera_en  = False
 
         # TF2 相关
@@ -102,6 +103,8 @@ class IMUSerialNode:
             pass
             #rospy.logerr("Failed to read serial port: %s", str(e))
 
+    def yolo_data_cb(self, data):
+        self.send_animnal(data.type, data.x, data.y, data.number)
 
     def serial_ctrl_callback(self, data):
         self.send_packet(data.func,data.data)
@@ -398,7 +401,7 @@ class WaypointController:
             last_wp = path[-1]
             home_path = self._find_path_between(last_wp, self.start_pos)
             if home_path:
-                path.extend(home_path[1:])
+                path.extend(home_path[1:-1])
 
         self._full_path = path
         self._current_step_index = 0
