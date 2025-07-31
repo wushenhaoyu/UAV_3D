@@ -14,7 +14,7 @@ from tutorial_vision.msg import StringStamped  # 导入二维码消息类型
 from std_msgs.msg import UInt8, Int32
 from std_msgs.msg import Bool
 from tutorial_serial.msg import SerialData
-from tutorial_serial.msg import WayPoint
+from tutorial_serial.msg import WayPoint, WayPointArry
 class IMUSerialNode:
     def __init__(self):
         rospy.init_node('serial_node', log_level=rospy.INFO)
@@ -53,7 +53,7 @@ class IMUSerialNode:
         self.camera_pos = 0
         
 
-        self.waypoint_reuqest_pub = rospy.Publisher("waypoint_request", WayPoint, queue_size=10)
+        self.waypoint_reuqest_pub = rospy.Publisher("waypoint_request", WayPointArry, queue_size=10)
         self.clear_waypoint_pub = rospy.Publisher("clear_waypoint", UInt8, queue_size=10)
         self.camera_pos_pub = rospy.Publisher("camera_pos", UInt8, queue_size=10)
         self.laser_status_pub = rospy.Publisher("laser_status", UInt8, queue_size=10)
@@ -72,7 +72,7 @@ class IMUSerialNode:
 
         self.camera_pos_down() #摄像头下看
         self.laser_on()#打激光
-        self.send_packet(0x0A, 0x01) #蜂鸣
+        #self.send_packet(0x0A, 0x01) #蜂鸣
 
     def read_serial(self, event):
         try:
@@ -197,21 +197,31 @@ class IMUSerialNode:
         elif(func == 0x03):
             self.deny_fly_3 = (data[0], data[1])
             rospy.loginfo("deny_fly_3: %s", self.deny_fly_3)
-        elif(func == 0x04):
             if self.deny_fly_1 and self.deny_fly_2 and self.deny_fly_3:
                 no_fly_map_coords = [self.deny_fly_1, self.deny_fly_2, self.deny_fly_3]
                 rospy.loginfo("No-fly zone coordinates: %s", no_fly_map_coords)
                 self.waypointController.plan_mission(no_fly_map_coords)
                 self.clear_waypoint_pub.publish(UInt8(1))  # 清除之前的航点
                 rospy.loginfo("Mission planning complete.")
-                for point in self.waypointController._full_path:
-                    self.send_waypoint(point)
-                    ax , ay = self.coordinateConverter.aircraft_to_map(point)
-                    waypoint_msg = WayPoint()
-                    waypoint_msg.x = ax
-                    waypoint_msg.y = ay
-                    self.waypoint_reuqest_pub.publish(waypoint_msg)
-                
+                WayPointArry_msg = WayPointArry()
+                packet = bytearray()
+                packet.append(0xAA)  # Frame header
+                packet.append(0x11)
+                packet.append(len(self.waypointController._full_path) * 2)  # Data length (1 byte for waypoint)
+                for i in range(len(self.waypointController._full_path)):
+                    (mx,my) , is_new = self.waypointController.get_next_waypoint()
+                    ax, ay = self.coordinateConverter.map_to_aircraft((mx, my))
+                    packet.append(mx)
+                    packet.append(my)
+                    p = Point()
+                    p.x = ax
+                    p.y = ay
+                    p.z = is_new
+                    WayPointArry_msg.points.append(p)
+                packet.append(0xAF)
+                self.serial_port.write(packet)
+                self.waypoint_reuqest_pub.publish(WayPointArry_msg)
+
 
     def send_waypoint(self, waypoint):
         packet = bytearray()
@@ -267,56 +277,6 @@ class IMUSerialNode:
         self.yaw_symbol = data.data
         rospy.logerr("yaw_symbol: %d", self.yaw_symbol )
 
-    """def qr_callback(self, msg):
-        try:
-            if(msg.data):
-                if self.fly_task == 1:
-                    if self.camera_en == True:
-                        packet = bytearray()
-                        packet.append(0xAA)  # 帧头
-                        packet.append(0x01)  # 功能码（自定义）
-                        
-                        # 将 msg.data 中的字符串转换为对应的十进制数，再转换为十六进制数
-                        qr_data = bytearray()
-                        for char in msg.data:
-                            try:
-                                decimal_value = int(char)  # 将字符转换为对应的十进制数
-                                qr_data.append(decimal_value)  # 将十进制数添加到 qr_data
-                            except ValueError:
-                                rospy.logwarn(f"Invalid decimal value: {char}, skipping this value.")
-                        
-                        data_length = len(qr_data) + 0x01
-                        packet.append(data_length) 
-                        packet.append(self.judge_location())
-                        
-                        packet.extend(qr_data) 
-                        packet.append(0xAF)  # 帧尾
-                        
-                        rospy.loginfo("Sending packet: %s x:%.2f, y:%.2f, z:%.2f, yaw:%.2f",
-                                    ' '.join(format(byte, '02x') for byte in packet),
-                                    self.x, self.y, self.z, self.yaw)
-                        self.serial_port.write(packet) 
-                elif self.fly_task == 2:
-                    packet = bytearray()
-                    packet.append(0xAA)  # 帧头
-                    packet.append(0x02)  # 功能码（自定义）
-                    qr_data = bytearray()
-                    for char in msg.data:
-                        try:
-                            decimal_value = int(char)  # 将字符转换为对应的十进制数
-                            qr_data.append(decimal_value)  # 将十进制数添加到 qr_data
-                        except ValueError:
-                            rospy.logwarn(f"Invalid decimal value: {char}, skipping this value.")
-                    
-                    data_length = len(qr_data)
-                    packet.append(data_length)
-                    packet.extend(qr_data)
-                    packet.append(0xAF)  # 帧尾
-                    rospy.loginfo("Sending packet: %s", ' '.join(format(byte, '02x') for byte in packet))
-                    self.serial_port.write(packet) 
-
-        except Exception as e:
-            rospy.logerr("send qr failed: %s", str(e))"""
 
     def true_pos_callback(self, msg):
         self.count = self.count + 1
@@ -370,6 +330,7 @@ class WaypointController:
         self._current_step_index = 0
         self._visited_for_recognition = set()
 
+    # ---------- 原有工具 ----------
     def _is_no_fly_zone_horizontal(self, no_fly_coords: list) -> bool:
         first_y = no_fly_coords[0][1]
         if all(y == first_y for _, y in no_fly_coords):
@@ -398,26 +359,27 @@ class WaypointController:
                     queue.append(new_path)
         return None
 
+    # ---------- 任务规划 ----------
     def plan_mission(self, no_fly_map_coords: list):
         self.no_fly_zone = set(no_fly_map_coords)
         is_horizontal = self._is_no_fly_zone_horizontal(no_fly_map_coords)
 
+        # 生成覆盖航点
         waypoints = []
         if is_horizontal:
-            print("Detected no-fly zone is horizontal, using horizontal traversal strategy.")
             for y in range(1, self.height + 1):
-                x_range = range(self.width, 0, -1) if y % 2 != 0 else range(1, self.width + 1)
+                x_range = range(self.width, 0, -1) if y % 2 else range(1, self.width + 1)
                 for x in x_range:
                     if (x, y) not in self.no_fly_zone:
                         waypoints.append((x, y))
         else:
-            print("Detected no-fly zone is vertical, using vertical traversal strategy.")
             for x in range(self.width, 0, -1):
-                y_range = range(1, self.height + 1) if x % 2 != 0 else range(self.height, 0, -1)
+                y_range = range(1, self.height + 1) if x % 2 else range(self.height, 0, -1)
                 for y in y_range:
                     if (x, y) not in self.no_fly_zone:
                         waypoints.append((x, y))
 
+        # 生成覆盖路径
         path = [self.start_pos]
         current_pos = self.start_pos
         if self.start_pos in waypoints:
@@ -431,38 +393,30 @@ class WaypointController:
             else:
                 print(f"警告: 无法从 {current_pos} 到达目标点 {target}。")
 
+        # 新增：从最后一个航点直线回到起飞点
+        if path:
+            last_wp = path[-1]
+            home_path = self._find_path_between(last_wp, self.start_pos)
+            if home_path:
+                path.extend(home_path[1:])
+
         self._full_path = path
         self._current_step_index = 0
         self._visited_for_recognition = set()
         print(f"Complete : {len(self._full_path)}。")
 
+    # ---------- 获取下一个航点 ----------
     def get_next_waypoint(self) -> tuple:
-        """
-        获取下一个航点及其状态。
-        这是在飞行循环中调用的主要接口。
-
-        Returns:
-            tuple: (坐标, 是否为新格子)。例如 ((8, 1), True)。
-                   如果任务完成，则返回 (None, None)。
-        """
-        # 起飞点(9,1)本身也算一个航点，但通常起飞后才开始请求下一个
-        # 为了逻辑清晰，我们从第一个点开始就判断
         if self._current_step_index >= len(self._full_path):
             print("所有航点已飞完，任务结束。")
-            return None, None  # 任务完成
-
-        # 获取当前航点坐标
+            return None, None
         coord = self._full_path[self._current_step_index]
-
-        # 判断是否为首次访问（用于视觉识别）
         is_new = coord not in self._visited_for_recognition
         if is_new:
             self._visited_for_recognition.add(coord)
-
-        # 移动到下一个航点
         self._current_step_index += 1
-
         return coord, is_new
+
         
     
 

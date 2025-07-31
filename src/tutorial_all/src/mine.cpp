@@ -75,6 +75,7 @@ ros::Publisher local_pos_pub;
 ros::Publisher camera_en_pub ;
 ros::Publisher serial_pub;
 void object_track_xy(int type);
+void void beep();
 void vision_pos_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
     if (!flag_vision_ready) {
@@ -82,6 +83,7 @@ void vision_pos_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
 	if(vision_ready_count >= 10){
 		        flag_vision_ready = true;
         ROS_INFO("vision_pose received. Now ready to init position.");
+        beep();
 	}
     }
 }
@@ -158,10 +160,19 @@ void clear_waypoint_cb(const std_msgs::UInt8::ConstPtr& msg) {
     ROS_INFO("Waypoints cleared.");
 }
 
-void waypoint_request_cb(const tutorial_serial::WayPoint::ConstPtr& msg) {
-    tutorial_serial::WayPoint waypoint = *msg;
-    waypoint_list.push_back(waypoint);
-    ROS_INFO("Waypoint requested: (%d, %d)", waypoint.x, waypoint.y);
+
+
+
+void waypoint_request_cb(const tutorial_serial::WayPointArry::ConstPtr& msg) {
+    waypoint_list.clear();
+    for (const auto& wp : msg->waypoints) {
+        tutorial_serial::WayPoint new_wp;
+        new_wp.x = wp.x;
+        new_wp.y = wp.y;
+        new_wp.is_new = wp.z;
+        waypoint_list.push_back(new_wp);
+    }
+    ROS_INFO("Received %zu waypoints.", waypoint_list.size());
 }
 
  
@@ -241,6 +252,12 @@ void camera_disable(){
     ROS_INFO("Camera disabled.");
 }
 
+void beep(){
+    tutorial_serial::SerialData serial_msg;
+    serial_msg.func = 10;
+    serial_msg.data = 1;
+    serial_pub.publish(serial_msg);
+}
 
 
 
@@ -348,7 +365,7 @@ void run_fly_task()
 
     // 继续飞往当前目标点
     const auto& wp = waypoint_list[fly_task_state];
-    fly_to_point_speical(wp.x * 0.5 , wp.y * 0.5, ALTITUDE, 1.0);
+    fly_to_point_speical(wp.x * 0.5 - 0.5, wp.y * 0.5 - 0.5, ALTITUDE, 1.0);
 }
 void test(){
         switch (fly_task_state) {
