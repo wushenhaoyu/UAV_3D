@@ -42,6 +42,14 @@ class YOLOv8ROS:
 
         # 1. 图像转换
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+        x1, y1 = 167, 84
+        x2, y2 = 455, 323
+        h, w = frame.shape[:2]
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(w, x2), min(h, y2)
+
+    # 裁剪区域
+        frame = frame[y1:y2, x1:x2] 
 
         # 2. 推理
         results = self.model.predict(frame,conf=self.confidence, verbose=False)
@@ -63,6 +71,7 @@ class YOLOv8ROS:
             msg_out = Aninmal()
             msg_out.type   = self.cls2type[cls_name]
             msg_out.number = int(cnt)
+            rospy.loginfo("Published: %s %d", cls_name, cnt)
             self.pub.publish(msg_out)
 
 

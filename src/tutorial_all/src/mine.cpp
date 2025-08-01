@@ -444,7 +444,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 3:
-                    test();
+                    run_fly_task();
                 break;
             case 100:
                 if(getLengthBetweenPoints() < 0.1 && fabs(init_position_z_take_off - local_pos.pose.pose.position.z) < 0.1 )

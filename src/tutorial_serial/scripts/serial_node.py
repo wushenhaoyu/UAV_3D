@@ -110,8 +110,8 @@ class IMUSerialNode:
             #rospy.logerr("Failed to read serial port: %s", str(e))
 
     def yolo_result_callback(self, data):
-        x,y = self.coordinateConverter.convert_to_local(self.closest_x_idx, self.closest_y_idx)
-        self.send_animnal(data.type,x,y, data.number)
+        x,y = self.coordinateConverter.aircraft_to_map((self.closest_x_idx, self.closest_y_idx))
+        self.send_animnal(data.type,self.closest_x_id,self.closest_y_idx, data.number)
         #self.send_animnal(data.type, self.waypointController._full_path[self._shoot_idx - 1][0], self.waypointController._full_path[self._shoot_idx - 1][1], data.number)
         #self.send_animnal(data.type, data.x, data.y, data.number)
 
@@ -360,7 +360,7 @@ class WaypointController:
         self._visited_for_recognition = set()
         self._easy_path = []
 
-        self.dd = False
+        self.dd = True
 
     # ---------- 原有工具 ----------
     def _is_no_fly_zone_horizontal(self, no_fly_coords: list) -> bool:
