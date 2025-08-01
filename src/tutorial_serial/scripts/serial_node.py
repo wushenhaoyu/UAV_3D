@@ -288,7 +288,7 @@ class IMUSerialNode:
         cur = np.array([self.x, self.y])
 
 
-        if(self.x < 0 or self.y < 0 or self.x > 3 or self.y > 4):
+        if(self.x < -0.25 or self.y < -0.25 or self.x > 3.25 or self.y > 4.25):
             return
 
 
@@ -305,7 +305,7 @@ class IMUSerialNode:
         x_idx, y_idx = divmod(idx, 9)        # x方向7个，故 stride = 9
         d = math.sqrt(dist2[idx])
         # 7. 距离小于 0.1 就记录
-        if d < 0.1:
+        if d < 0.3:
             closest_x_idx , closest_y_idx = self.coordinateConverter.aircraft_to_map((x_idx , y_idx ))
             #rospy.loginfo("x:%d,y:%d,d:%f,mx:%d,my:%d",x_idx,y_idx,d,closest_x_idx , closest_y_idx)
             if(closest_x_idx != self.closest_x_idx or closest_y_idx != self.closest_y_idx):

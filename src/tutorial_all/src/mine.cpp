@@ -360,10 +360,16 @@ void run_fly_task()
 }
 void test(){
         switch (fly_task_state) {
-        case 0: fly_to_point(3,0,ALTITUDE,5.0);break;
-        case 1: fly_to_point(3,4,ALTITUDE,5.0);break;
-        case 2: fly_to_point(0,4,ALTITUDE,5.0);break;
-        case 3: end_fly_task();break;
+        case 0: fly_to_point(0.5,0,ALTITUDE,1.0);break;
+        case 1: fly_to_point(1.0,0,ALTITUDE,1.0);break;
+        case 2: fly_to_point(1.5,0,ALTITUDE,1.0);break;
+        case 3: fly_to_point(2.0,0,ALTITUDE,1.0);break;
+        case 4: fly_to_point(2.5,0,ALTITUDE,1.0);break;
+        case 5: fly_to_point(3.0,0,ALTITUDE,1.0);break;
+        case 6: fly_to_point(3.0,0.5,ALTITUDE,1.0);break;
+        case 7: fly_to_point(3.0,1.0,ALTITUDE,1.0);break;
+        case 8: fly_to_point(3.0,1.5,ALTITUDE,1.0);break;
+        case 9: end_fly_task();break;
         default: break;
     }
 }

@@ -13,7 +13,7 @@ from collections import Counter
 class YOLOv8ROS:
     def __init__(self):
         # ---------------- 参数 ----------------
-        self.model_path   = rospy.get_param('~model_path', '/home/flmg/UAV_3D/best_11_32_n.pt')
+        self.model_path   = rospy.get_param('~model_path', '/home/flmg/UAV_3D/121.pt')
         self.confidence   = rospy.get_param('~confidence', 0.5)
 
         # 名字到 type 的映射
@@ -44,7 +44,7 @@ class YOLOv8ROS:
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
 
         # 2. 推理
-        results = self.model.predict(frame, imgsz=640, conf=self.confidence, verbose=False)
+        results = self.model.predict(frame,conf=self.confidence, verbose=False)
 
         # 3. 统计类别出现次数
         names = self.model.names
