@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import collections
+import numpy as np
 import rospy
 import serial
 import struct
@@ -55,6 +56,9 @@ class IMUSerialNode:
         
         self._shoot_idx = 0
 
+        self.closest_x_idx = 9
+        self.closest_y_idx = 1
+
         self.camera_en_pub = rospy.Publisher("camera_en", Bool, queue_size=10)
         self.waypoint_reuqest_pub = rospy.Publisher("waypoint_request", WayPointArry, queue_size=10)
         self.clear_waypoint_pub = rospy.Publisher("clear_waypoint", UInt8, queue_size=10)
@@ -106,7 +110,9 @@ class IMUSerialNode:
             #rospy.logerr("Failed to read serial port: %s", str(e))
 
     def yolo_result_callback(self, data):
-        self.send_animnal(data.type, self.waypointController._full_path[self._shoot_idx - 1][0], self.waypointController._full_path[self._shoot_idx - 1][1], data.number)
+        x,y = self.coordinateConverter.convert_to_local(self.closest_x_idx, self.closest_y_idx)
+        self.send_animnal(data.type,x,y, data.number)
+        #self.send_animnal(data.type, self.waypointController._full_path[self._shoot_idx - 1][0], self.waypointController._full_path[self._shoot_idx - 1][1], data.number)
         #self.send_animnal(data.type, data.x, data.y, data.number)
 
     def serial_ctrl_callback(self, data):
@@ -194,8 +200,9 @@ class IMUSerialNode:
 
                 for point in self.waypointController.easy_path:
                     p = Point()
-                    p.x = point[0]
-                    p.y = point[1]
+                    (ax,ay) = self.coordinateConverter.map_to_aircraft(point)
+                    p.x = ax
+                    p.y = ay
                     p.z = 0
                     WayPointArry_msg.points.append(p)
                 packet.append(0xAF)
@@ -261,35 +268,62 @@ class IMUSerialNode:
 
 
     def true_pos_callback(self, msg):
-        # 提取位置
+        # 1. 提取位置
         position = msg.pose.position
         self.x = position.x
         self.y = position.y
         self.z = position.z
 
-        # 提取偏航角
+        # 2. 提取偏航角
         orientation = msg.pose.orientation
-        quaternion = [
-            orientation.x,
-            orientation.y,
-            orientation.z,
-            orientation.w
-        ]
+        quaternion = [orientation.x, orientation.y, orientation.z, orientation.w]
         roll, pitch, yaw = euler_from_quaternion(quaternion)
         self.yaw = yaw
 
-        if not self.waypointController._full_path:
+        # 3. 无路径直接返回
+        #if not self.waypointController._full_path:
+        #    return
+
+        # 4. 当前坐标
+        cur = np.array([self.x, self.y])
+
+
+        if(self.x < 0 or self.y < 0 or self.x > 3 or self.y > 4):
             return
+
+
+        # 5. 生成 7×9 网格中心 (x方向7个，y方向9个)
+        centers = np.array([[(x_idx * 0.5 - 0.5, y_idx * 0.5 - 0.5)
+                            for y_idx in range(9)]
+                            for x_idx in range(7)]).reshape(-1, 2)
         
-        if self._shoot_idx < len(self.waypointController._full_path):
-            mx, my = self.waypointController._full_path[self._shoot_idx]
-            ax, ay = self.coordinateConverter.map_to_aircraft((mx, my))
-            ax = ax * 0.5 - 0.5
-            ay = ay * 0.5 - 0.5
-            d = math.sqrt((ax - self.x) ** 2 + (ay - self.y) ** 2)
-            if d < 0.15:
-                self.camera_en()
-                self._shoot_idx += 1
+        
+
+        # 6. 找最近中心
+        dist2 = np.sum((centers - cur) ** 2, axis=1)
+        idx = int(np.argmin(dist2))
+        x_idx, y_idx = divmod(idx, 9)        # x方向7个，故 stride = 9
+        d = math.sqrt(dist2[idx])
+        # 7. 距离小于 0.1 就记录
+        if d < 0.1:
+            closest_x_idx , closest_y_idx = self.coordinateConverter.aircraft_to_map((x_idx , y_idx ))
+            #rospy.loginfo("x:%d,y:%d,d:%f,mx:%d,my:%d",x_idx,y_idx,d,closest_x_idx , closest_y_idx)
+            if(closest_x_idx != self.closest_x_idx or closest_y_idx != self.closest_y_idx):
+                self.closest_x_idx = closest_x_idx
+                self.closest_y_idx = closest_y_idx
+                self.camera_en_pub.publish(Bool(True))
+                rospy.loginfo("Closest waypoint: (%d, %d)", closest_x_idx, closest_y_idx)
+        #if self._shoot_idx < len(self.waypointController._full_path):
+        #    mx, my = self.waypointController._full_path[self._shoot_idx]
+        #    ax, ay = self.coordinateConverter.map_to_aircraft((mx, my))
+        #    ax = ax * 0.5 - 0.5
+        #    ay = ay * 0.5 - 0.5
+        #    d = math.sqrt((ax - self.x) ** 2 + (ay - self.y) ** 2)
+        #    if d < 0.15:
+        #        self.camera_en()
+        #        self._shoot_idx += 1
+
+        
 
             
 
@@ -326,7 +360,7 @@ class WaypointController:
         self._visited_for_recognition = set()
         self._easy_path = []
 
-        self.dd = True
+        self.dd = False
 
     # ---------- 原有工具 ----------
     def _is_no_fly_zone_horizontal(self, no_fly_coords: list) -> bool:

@@ -4,6 +4,7 @@
     </node>
     <node pkg="tutorial_serial" type="serial_node.py" name="serial_node" output="screen">
     </node>
+    <!--<node pkg="tutorial_vision" type="yolos.py" name="yolo" output="screen">-->
     <include file="$(find tutorial_vision)/launch/simple_camera_driver.launch" />
     <include file="$(find tutorial_basic)/launch/mavros.launch" />
     <include file="$(find tutorial_navigation)/launch/mid360.launch" />

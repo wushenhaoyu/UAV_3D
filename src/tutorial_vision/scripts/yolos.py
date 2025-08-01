@@ -13,7 +13,7 @@ from collections import Counter
 class YOLOv8ROS:
     def __init__(self):
         # ---------------- 参数 ----------------
-        self.model_path   = rospy.get_param('~model_path', 'best_s.pt')
+        self.model_path   = rospy.get_param('~model_path', '/home/flmg/UAV_3D/best_11_32_n.pt')
         self.confidence   = rospy.get_param('~confidence', 0.5)
 
         # 名字到 type 的映射

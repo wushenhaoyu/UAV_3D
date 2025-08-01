@@ -360,13 +360,15 @@ void run_fly_task()
 }
 void test(){
         switch (fly_task_state) {
-        case 0: fly_to_point(0.5,0,ALTITUDE,2.0);break;
-        case 1: fly_to_point(0.5,0.5,ALTITUDE,2.0);break;
-        case 2: fly_to_point(0,0.5,ALTITUDE,2.0);break;
+        case 0: fly_to_point(3,0,ALTITUDE,5.0);break;
+        case 1: fly_to_point(3,4,ALTITUDE,5.0);break;
+        case 2: fly_to_point(0,4,ALTITUDE,5.0);break;
         case 3: end_fly_task();break;
         default: break;
     }
 }
+
+
 
 
 int main(int argc, char **argv) {
@@ -436,7 +438,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 3:
-                    run_fly_task();
+                    test();
                 break;
             case 100:
                 if(getLengthBetweenPoints() < 0.1 && fabs(init_position_z_take_off - local_pos.pose.pose.position.z) < 0.1 )

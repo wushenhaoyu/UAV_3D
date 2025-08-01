@@ -12,9 +12,11 @@ camera_en = False
 def camera_en_cb(data):
     global camera_en
     camera_en = data.data
+    rospy.loginfo("camera_en: %d", camera_en)
     
 
 def main(argv):
+    global camera_en
     rospy.init_node("simple_camera_driver", argv=argv)
     camera_id = rospy.get_param("~camera_id", 0)
     frame_id = rospy.get_param("~frame_id", "mono_camera")
@@ -27,8 +29,12 @@ def main(argv):
     rate = rospy.Rate(rate_duration)
     while not rospy.is_shutdown():
         if not camera_en:
+            rate.sleep()
             continue
+        else:
+            camera_en = False
         ret, frame = capture.read()
+        cv2.imwrite("some_filename.jpg", frame)
         if ret:
             try:
                 image_msg = bridge.cv2_to_imgmsg(frame, "bgr8")
