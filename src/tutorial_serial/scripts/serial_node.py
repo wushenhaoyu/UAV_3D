@@ -15,7 +15,7 @@ from tutorial_vision.msg import StringStamped  # 导入二维码消息类型
 from std_msgs.msg import UInt8, Int32
 from std_msgs.msg import Bool
 from tutorial_serial.msg import SerialData
-from tutorial_serial.msg import WayPoint, WayPointArry, AninmalData
+from tutorial_serial.msg import WayPoint, WayPointArry, AninmalData , CameraEn
 from tutorial_vision.msg import Aninmal
 class IMUSerialNode:
     def __init__(self):
@@ -59,7 +59,7 @@ class IMUSerialNode:
         self.closest_x_idx = 9
         self.closest_y_idx = 1
 
-        self.camera_en_pub = rospy.Publisher("camera_en", Bool, queue_size=10)
+        self.camera_en_pub = rospy.Publisher("camera_en", CameraEn, queue_size=10)
         self.waypoint_reuqest_pub = rospy.Publisher("waypoint_request", WayPointArry, queue_size=10)
         self.clear_waypoint_pub = rospy.Publisher("clear_waypoint", UInt8, queue_size=10)
         self.camera_pos_pub = rospy.Publisher("camera_pos", UInt8, queue_size=10)
@@ -70,7 +70,7 @@ class IMUSerialNode:
         self.yaw_symbol_sub = rospy.Subscriber("yaw_symbol", Int32, self.yaw_symbol_callback)
         self.true_pos_sub = rospy.Subscriber("true_position", PoseStamped, self.true_pos_callback)
         self.serial_ctrl_sub = rospy.Subscriber("serial_ctrl", SerialData, self.serial_ctrl_callback)
-        self.yolo_result_sub = rospy.Subscriber("yolo_result", Aninmal, self.yolo_result_callback)
+        self.yolo_result_sub = rospy.Subscriber("yolo_result", AninmalData, self.yolo_result_callback)
 
 
         # TF2 相关
@@ -110,8 +110,8 @@ class IMUSerialNode:
             #rospy.logerr("Failed to read serial port: %s", str(e))
 
     def yolo_result_callback(self, data):
-        x,y = self.coordinateConverter.aircraft_to_map((self.closest_x_idx, self.closest_y_idx))
-        self.send_animnal(data.type,self.closest_x_id,self.closest_y_idx, data.number)
+        #x,y = self.coordinateConverter.aircraft_to_map((self.closest_x_idx, self.closest_y_idx))
+        self.send_animnal(data.type,data.x,data.y, data.number)
         #self.send_animnal(data.type, self.waypointController._full_path[self._shoot_idx - 1][0], self.waypointController._full_path[self._shoot_idx - 1][1], data.number)
         #self.send_animnal(data.type, data.x, data.y, data.number)
 
@@ -255,9 +255,6 @@ class IMUSerialNode:
             rospy.logerr("Failed to write to serial port: %s", str(e))                             
 
             
-    def camera_en(self):
-        self.camera_en_pub.publish(Bool(True))
-        rospy.loginfo("camera_en")
 
     def fly_task_callback(self, data):
         self.fly_task = data.data
@@ -305,13 +302,16 @@ class IMUSerialNode:
         x_idx, y_idx = divmod(idx, 9)        # x方向7个，故 stride = 9
         d = math.sqrt(dist2[idx])
         # 7. 距离小于 0.1 就记录
-        if d < 0.3:
+        if d < 0.12:
             closest_x_idx , closest_y_idx = self.coordinateConverter.aircraft_to_map((x_idx , y_idx ))
             #rospy.loginfo("x:%d,y:%d,d:%f,mx:%d,my:%d",x_idx,y_idx,d,closest_x_idx , closest_y_idx)
             if(closest_x_idx != self.closest_x_idx or closest_y_idx != self.closest_y_idx):
                 self.closest_x_idx = closest_x_idx
                 self.closest_y_idx = closest_y_idx
-                self.camera_en_pub.publish(Bool(True))
+                CameraEn_msg = CameraEn()
+                CameraEn_msg.x = self.closest_x_idx
+                CameraEn_msg.y = self.closest_y_idx
+                self.camera_en_pub.publish(CameraEn_msg)
                 rospy.loginfo("Closest waypoint: (%d, %d)", closest_x_idx, closest_y_idx)
         #if self._shoot_idx < len(self.waypointController._full_path):
         #    mx, my = self.waypointController._full_path[self._shoot_idx]
@@ -360,7 +360,7 @@ class WaypointController:
         self._visited_for_recognition = set()
         self._easy_path = []
 
-        self.dd = True
+        self.dd = False
 
     # ---------- 原有工具 ----------
     def _is_no_fly_zone_horizontal(self, no_fly_coords: list) -> bool:

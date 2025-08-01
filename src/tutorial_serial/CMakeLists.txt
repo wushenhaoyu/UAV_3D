@@ -54,6 +54,7 @@ find_package(catkin REQUIRED COMPONENTS
    WayPoint.msg
    WayPointArry.msg
    AninmalData.msg
+   CameraEn.msg
  )
 
 ## Generate services in the 'srv' folder
