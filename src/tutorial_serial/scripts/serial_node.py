@@ -47,6 +47,8 @@ class IMUSerialNode:
 
         self.count = 0
 
+        
+
         self.deny_fly_1 = None
         self.deny_fly_2 = None
         self.deny_fly_3 = None
@@ -58,6 +60,9 @@ class IMUSerialNode:
 
         self.closest_x_idx = 9
         self.closest_y_idx = 1
+
+        self._filter_cnt = 0          # 连续命中计数
+        self._last_candidate = None   # 上一次候选 (x_idx, y_idx)
 
         self.camera_en_pub = rospy.Publisher("camera_en", CameraEn, queue_size=10)
         self.waypoint_reuqest_pub = rospy.Publisher("waypoint_request", WayPointArry, queue_size=10)
@@ -277,42 +282,54 @@ class IMUSerialNode:
         roll, pitch, yaw = euler_from_quaternion(quaternion)
         self.yaw = yaw
 
-        # 3. 无路径直接返回
-        #if not self.waypointController._full_path:
-        #    return
+        # 3. 边界检查：地图范围 (0~4, 0~3)
+        if self.x < -0.25 or self.y < -0.25 or self.x > 3.25 or self.y > 4.25:
+            return
 
         # 4. 当前坐标
         cur = np.array([self.x, self.y])
 
-
-        if(self.x < -0.25 or self.y < -0.25 or self.x > 3.25 or self.y > 4.25):
-            return
-
-
-        # 5. 生成 7×9 网格中心 (x方向7个，y方向9个)
-        centers = np.array([[(x_idx * 0.5 - 0.5, y_idx * 0.5 - 0.5)
-                            for y_idx in range(9)]
-                            for x_idx in range(7)]).reshape(-1, 2)
-        
-        
+        # 5. 生成 7×4 网格中心（步长 0.5）
+        centers = np.array([[(x_idx * 0.5, y_idx * 0.5)
+                    for y_idx in range(9)]   # 0~3，9个点
+                    for x_idx in range(7)]   # 0~3，7个点
+                  ).reshape(-1, 2)
 
         # 6. 找最近中心
         dist2 = np.sum((centers - cur) ** 2, axis=1)
         idx = int(np.argmin(dist2))
-        x_idx, y_idx = divmod(idx, 9)        # x方向7个，故 stride = 9
+        x_idx = idx // 9 + 1   # x方向7个点，索引1~7
+        y_idx = idx % 9 + 1    # y方向9个点，索引1~9
         d = math.sqrt(dist2[idx])
-        # 7. 距离小于 0.1 就记录
-        if d < 0.12:
-            closest_x_idx , closest_y_idx = self.coordinateConverter.aircraft_to_map((x_idx , y_idx ))
-            #rospy.loginfo("x:%d,y:%d,d:%f,mx:%d,my:%d",x_idx,y_idx,d,closest_x_idx , closest_y_idx)
-            if(closest_x_idx != self.closest_x_idx or closest_y_idx != self.closest_y_idx):
-                self.closest_x_idx = closest_x_idx
-                self.closest_y_idx = closest_y_idx
-                CameraEn_msg = CameraEn()
-                CameraEn_msg.x = self.closest_x_idx
-                CameraEn_msg.y = self.closest_y_idx
-                self.camera_en_pub.publish(CameraEn_msg)
-                rospy.loginfo("Closest waypoint: (%d, %d)", closest_x_idx, closest_y_idx)
+
+        # 7. 距离小于阈值，则发布
+        if d < 0.2:
+            # 索引映射：0~6 → 1~7, 0~3 → 1~4
+            # ---------- 滤波 5 次 ----------
+            CANDIDATE = (x_idx, y_idx)           # 当前候选格子
+
+            if CANDIDATE == self._last_candidate:
+                self._filter_cnt += 1
+            else:
+                self._filter_cnt = 1             # 重新计数
+                self._last_candidate = CANDIDATE
+
+            if self._filter_cnt >= 2:            # 连续 5 次才生效
+                closest_x_idx, closest_y_idx = self.coordinateConverter.aircraft_to_map(CANDIDATE)
+
+                if (closest_x_idx != self.closest_x_idx or
+                    closest_y_idx != self.closest_y_idx):
+
+                    self.closest_x_idx = closest_x_idx
+                    self.closest_y_idx = closest_y_idx
+
+                    CameraEn_msg = CameraEn()
+                    CameraEn_msg.x = self.closest_x_idx
+                    CameraEn_msg.y = self.closest_y_idx
+                    self.camera_en_pub.publish(CameraEn_msg)
+                    rospy.loginfo("Closest waypoint: (%d, %d)", closest_x_idx, closest_y_idx)
+
+        
         #if self._shoot_idx < len(self.waypointController._full_path):
         #    mx, my = self.waypointController._full_path[self._shoot_idx]
         #    ax, ay = self.coordinateConverter.map_to_aircraft((mx, my))

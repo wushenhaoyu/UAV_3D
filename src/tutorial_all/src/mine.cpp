@@ -356,7 +356,7 @@ void run_fly_task()
 
     // 继续飞往当前目标点
     const auto& wp = waypoint_list[fly_task_state];
-    fly_to_point_speical(wp.x * 0.5 - 0.5, wp.y * 0.5 - 0.5, ALTITUDE, 1.0);
+    fly_to_point_speical(wp.x * 0.5 - 0.5, wp.y * 0.5 - 0.5, ALTITUDE, 2.0);
 }
 void test(){
         switch (fly_task_state) {
@@ -447,17 +447,30 @@ int main(int argc, char **argv) {
                     run_fly_task();
                 break;
             case 100:
-                if(getLengthBetweenPoints() < 0.1 && fabs(init_position_z_take_off - local_pos.pose.pose.position.z) < 0.1 )
+                if(getLengthBetweenPoints() < 0.1 && getHeightBetweenPoints() < 0.1 && ros::Time::now() - last_request > ros::Duration(4.0))
                 {
                     fsm_state = 101;
                     last_request = ros::Time::now();
+                    beep();
                 }else{
-                    pose.pose.position.x = init_position_x_take_off + 0;
-                    pose.pose.position.y = init_position_y_take_off + 0;
-                    pose.pose.position.z = init_position_z_take_off - 0.15 ;
+                    pose.pose.position.x = init_position_x_take_off + 0.4;
+                    pose.pose.position.y = init_position_y_take_off + 0.4;
+                    pose.pose.position.z = init_position_z_take_off + 0.5;
                 }
                 break;
             case 101:
+                if(getLengthBetweenPoints() < 0.1 && fabs(init_position_z_take_off - local_pos.pose.pose.position.z) < 0.1 )
+                {
+                    
+                    fsm_state = 102;
+                    last_request = ros::Time::now();
+                }else{
+                    pose.pose.position.x = init_position_x_take_off ;
+                    pose.pose.position.y = init_position_y_take_off ;
+                    pose.pose.position.z = init_position_z_take_off - 0.15;
+                }
+                break;
+            case 102:
                 if(current_state.mode == "AUTO.LAND"){
                     fsm_state = -1; 
                 }else{

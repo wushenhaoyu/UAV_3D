@@ -4,7 +4,7 @@ import time
 import os
 
 # 加载YOLO模型（比如 yolov8n.pt 或 yolov11n.pt）
-model = YOLO("best_11_64_n.pt")  # 可换为你训练好的 best.pt 等
+model = YOLO("last.pt")  # 可换为你训练好的 best.pt 等
 
 # 创建输出文件夹
 os.makedirs("crops", exist_ok=True)
