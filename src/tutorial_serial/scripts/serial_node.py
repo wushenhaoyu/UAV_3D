@@ -377,7 +377,6 @@ class WaypointController:
         self._visited_for_recognition = set()
         self._easy_path = []
 
-        self.dd = False
 
     # ---------- 原有工具 ----------
     def _is_no_fly_zone_horizontal(self, no_fly_coords: list) -> bool:
@@ -450,18 +449,7 @@ class WaypointController:
                 path.extend(home_path[1:-1])
 
         self._full_path = path
-        if self.dd:
-            self._full_path = [
-    (9, 1), (8, 1), (7, 1), (6, 1), (5, 1), (4, 1), (3, 1), (2, 1), (1, 1),
-    (1, 2), (2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2), (8, 2), (9, 2),
-    (9, 3), (8, 3), (7, 3), (6, 3), (5, 3), (4, 3), (3, 3), (2, 3), (1, 3),
-    (1, 4), (2, 4), (3, 4), (4, 4), (5, 4), (6, 4), (7, 4), (8, 4), (9, 4),
-    (9, 5), (8, 5), (7, 5), (6, 5), (5, 5), (4, 5), (3, 5), (2, 5), (1, 5),
-    (1, 6), (2, 6), (3, 6), (4, 6), (5, 6), (6, 6), (7, 6), (8, 6), (9, 6),
-    (9, 7), (8, 7), (7, 7), (6, 7), (5, 7), (4, 7), (3, 7), (2, 7), (1, 7), (2, 7), (3, 7), (4, 7), (5, 7),
-    (6, 7), (7, 7), (8, 7), (9, 7),
-    (9, 6), (9, 5), (9, 4), (9, 3), (9, 2), (9, 1)
-]
+
         self._current_step_index = 0
         self._visited_for_recognition = set()
         self.easy_path = self.compress_path(self._full_path)
